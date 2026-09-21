@@ -3,24 +3,29 @@ const WIDTH = 50;
 const HEIGHT = 35;
 const CELL_SIZE = 14;
 
-const TICK_MS = 90;        // Simulation tick speed
-const EPOCH_EVERY = 300;    // Epoch length for chronicle logs
+const TICK_MS = 80;        // Fluid simulation cadence
+const EPOCH_EVERY = 250;   // Epoch chronicle interval
 
-const INITIAL_PLANT_DENSITY = 0.20;
-const INITIAL_HERBIVORE_COUNT = 24;
+const INITIAL_PLANT_DENSITY = 0.18;
+const INITIAL_HERBIVORE_COUNT = 18;
 
 // ---------- State ----------
-let grid = createGrid();
+let grid = createGrid();           // Primary biological occupancy
+let soilNutrients = createSoil();  // Continuous soil mineral field (0.0 to 10.0)
+let detritusField = createSoil();  // Organic decay matter
 let entities = [];
 let tick = 0;
 let epoch = 0;
 
-// Track population history to detect oscillations and macro shifts
 let populationHistory = [];
 
-// ---------- Grid Helpers ----------
+// ---------- Grid & Field Helpers ----------
 function createGrid() {
   return Array.from({ length: WIDTH }, () => Array(HEIGHT).fill(null));
+}
+
+function createSoil() {
+  return Array.from({ length: WIDTH }, () => Array(HEIGHT).fill(3.0));
 }
 
 function getNeighbors(x, y) {
@@ -30,7 +35,7 @@ function getNeighbors(x, y) {
   ];
   const neighbors = [];
   for (const [dx, dy] of deltas) {
-    const nx = (x + dx + WIDTH) % WIDTH;   // Toroidal wrap
+    const nx = (x + dx + WIDTH) % WIDTH;
     const ny = (y + dy + HEIGHT) % HEIGHT;
     neighbors.push([nx, ny]);
   }
@@ -47,28 +52,30 @@ function randomEmptyNeighbor(x, y) {
   return opts[Math.floor(Math.random() * opts.length)];
 }
 
-// ---------- Genomes & Mutation ----------
+// ---------- Genomes & Heritable Variation ----------
 function defaultPlantGenome() {
   return {
-    growthRate: 1.2,
-    maintenanceCost: 0.5,
-    reproThreshold: 8.0,
-    reproCost: 4.5,
-    maxAge: 250,
-    crowdingTolerance: 5,   // Dies/fails to grow if surrounded by > N plants
+    growthRate: 1.1,
+    nutrientUptake: 0.4,       // Converts soil nutrients into extra vitality
+    maintenanceCost: 0.45,
+    reproThreshold: 7.5,
+    reproCost: 4.0,
+    maxAge: 280,
+    crowdingTolerance: 5,
     mutationRate: 0.08,
   };
 }
 
 function defaultHerbivoreGenome() {
   return {
-    baseMetabolism: 0.55,
-    movementCost: 0.35,
-    sensoryRadius: 3,       // Can sniff food up to 3 cells away
-    reproThreshold: 14.0,
-    reproCost: 7.0,
-    eatGain: 10.0,
-    maxAge: 220,
+    baseMetabolism: 0.45,
+    movementCost: 0.30,
+    sensoryRadius: 3,          // Scent foraging range
+    maxSatiation: 22.0,        // Stomach capacity: avoids instantaneous over-grazing
+    reproThreshold: 15.0,
+    reproCost: 8.0,
+    biteEfficiency: 7.0,
+    maxAge: 240,
     mutationRate: 0.08,
   };
 }
@@ -85,28 +92,28 @@ function mutateGenome(genome) {
     let val = g[key] * factor;
 
     if (key.includes("Cost") || key === "baseMetabolism" || key === "movementCost") {
-      val = Math.max(0.1, Math.min(3.0, val));
-    } else if (key === "growthRate") {
-      val = Math.max(0.3, Math.min(4.0, val));
-    } else if (key === "reproThreshold" || key === "reproCost" || key === "eatGain") {
-      val = Math.max(2.0, Math.min(30.0, val));
+      val = Math.max(0.08, Math.min(2.5, val));
+    } else if (key === "growthRate" || key === "nutrientUptake" || key === "biteEfficiency") {
+      val = Math.max(0.2, Math.min(12.0, val));
+    } else if (key === "reproThreshold" || key === "reproCost" || key === "maxSatiation") {
+      val = Math.max(3.0, Math.min(35.0, val));
     } else if (key === "crowdingTolerance" || key === "sensoryRadius") {
-      val = Math.max(1, Math.min(8, Math.round(val)));
+      val = Math.max(1, Math.min(7, Math.round(val)));
     } else if (key === "maxAge") {
-      val = Math.max(60, Math.min(500, Math.round(val)));
+      val = Math.max(60, Math.min(600, Math.round(val)));
     }
     g[key] = val;
   }
   return g;
 }
 
-// ---------- Entity Constructors ----------
+// ---------- Constructors ----------
 function createPlant(x, y, genome = null) {
   return {
     type: "plant",
     x,
     y,
-    energy: 5,
+    energy: 4.5,
     age: 0,
     genome: genome ? mutateGenome(genome) : defaultPlantGenome(),
     alive: true,
@@ -118,21 +125,25 @@ function createHerbivore(x, y, genome = null) {
     type: "herbivore",
     x,
     y,
-    energy: 12,
+    energy: 11.0,
     age: 0,
     genome: genome ? mutateGenome(genome) : defaultHerbivoreGenome(),
     alive: true,
   };
 }
 
-// ---------- World Initialization ----------
+// ---------- Lifecycle & Physics ----------
 function initWorld() {
   grid = createGrid();
+  soilNutrients = createSoil();
+  detritusField = createSoil();
   entities = [];
   populationHistory = [];
 
   for (let x = 0; x < WIDTH; x++) {
     for (let y = 0; y < HEIGHT; y++) {
+      detritusField[x][y] = 0.0;
+      soilNutrients[x][y] = 2.0 + Math.random() * 3.0;
       if (Math.random() < INITIAL_PLANT_DENSITY) {
         const p = createPlant(x, y);
         grid[x][y] = p;
@@ -155,14 +166,28 @@ function initWorld() {
   tick = 0;
   epoch = 0;
   clearLog();
-  logLine("🌱 Epoch 0 – Ecosystem seeded with self-regulating canopy and scent tracking.", "epoch");
+  logLine("🌱 Epoch 0 — Microbial decomposition and metabolic homeostasis active.", "epoch");
 }
 
-// ---------- Update Rules ----------
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+    [arr[j], arr[i]] = [arr[j], arr[i]];
+  }
+}
+
+function cycleSoilAndDetritus() {
+  // Microbial decomposition loop: detritus breaks down into rich mineral soil
+  for (let x = 0; x < WIDTH; x++) {
+    for (let y = 0; y < HEIGHT; y++) {
+      if (detritusField[x][y] > 0.05) {
+        const decomposed = detritusField[x][y] * 0.04;
+        detritusField[x][y] -= decomposed;
+        soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + decomposed * 1.2);
+      }
+      // Natural mineral diffusion across neighboring ground
+      soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + 0.003);
+    }
   }
 }
 
@@ -171,16 +196,21 @@ function updatePlant(p) {
   const neighbors = getNeighbors(p.x, p.y);
   const plantNeighbors = neighbors.filter(([nx, ny]) => grid[nx][ny]?.type === "plant").length;
 
-  // Crowding mechanic: Shading reduces light absorption
+  // Root uptake from soil
+  const availableSoil = soilNutrients[p.x][p.y];
+  const soilBonus = Math.min(availableSoil, g.nutrientUptake);
+  soilNutrients[p.x][p.y] = Math.max(0.0, availableSoil - soilBonus * 0.5);
+
+  // Canopy shading dynamics
   if (plantNeighbors >= g.crowdingTolerance) {
-    p.energy -= g.maintenanceCost * 1.5;
+    p.energy -= g.maintenanceCost * 1.6;
   } else {
-    p.energy += g.growthRate * (1 - plantNeighbors / 8);
+    p.energy += (g.growthRate + soilBonus) * (1 - plantNeighbors / 8.5);
     p.energy -= g.maintenanceCost;
   }
   p.age++;
 
-  // Reproduction with space check
+  // Proliferation
   if (p.energy >= g.reproThreshold && plantNeighbors < g.crowdingTolerance) {
     const pos = randomEmptyNeighbor(p.x, p.y);
     if (pos) {
@@ -192,8 +222,10 @@ function updatePlant(p) {
     }
   }
 
+  // Mortality leaves leaf litter in detritus
   if (p.energy <= 0 || p.age > g.maxAge) {
     p.alive = false;
+    detritusField[p.x][p.y] = Math.min(8.0, detritusField[p.x][p.y] + 1.2);
   }
 }
 
@@ -208,19 +240,27 @@ function updateHerbivore(h) {
 
   let ate = false;
 
-  // 1. Eat adjacent plant if present
-  for (const [nx, ny] of immediateNeighbors) {
-    const cell = grid[nx][ny];
-    if (cell && cell.type === "plant" && cell.alive) {
-      cell.alive = false;
-      grid[nx][ny] = null;
-      h.energy += g.eatGain;
-      ate = true;
-      break;
+  // 1. Satiation-gated grazing: grazers take bites rather than instantly decimating plants if full
+  if (h.energy < g.maxSatiation) {
+    for (const [nx, ny] of immediateNeighbors) {
+      const cell = grid[nx][ny];
+      if (cell && cell.type === "plant" && cell.alive) {
+        // Graze plant
+        const bite = Math.min(cell.energy, g.biteEfficiency);
+        cell.energy -= bite;
+        h.energy = Math.min(g.maxSatiation, h.energy + bite);
+        if (cell.energy <= 0.5) {
+          cell.alive = false;
+          grid[nx][ny] = null;
+          detritusField[nx][ny] = Math.min(8.0, detritusField[nx][ny] + 0.8);
+        }
+        ate = true;
+        break;
+      }
     }
   }
 
-  // 2. Sensory navigation: scan within sensoryRadius for closest plant
+  // 2. Sensory foraging scan
   if (!ate) {
     let bestTarget = null;
     let minDist = Infinity;
@@ -243,7 +283,6 @@ function updateHerbivore(h) {
 
     let movePos = null;
     if (bestTarget) {
-      // Step towards target
       const stepX = bestTarget.dx !== 0 ? (bestTarget.dx > 0 ? 1 : -1) : 0;
       const stepY = bestTarget.dy !== 0 ? (bestTarget.dy > 0 ? 1 : -1) : 0;
       const candX = (h.x + stepX + WIDTH) % WIDTH;
@@ -254,7 +293,6 @@ function updateHerbivore(h) {
       }
     }
 
-    // Fallback: random move
     if (!movePos) {
       const openSpots = immediateNeighbors.filter(([nx, ny]) => !grid[nx][ny]);
       if (openSpots.length > 0) {
@@ -286,36 +324,37 @@ function updateHerbivore(h) {
     }
   }
 
+  // Mortality deposits biomass into detritus
   if (h.energy <= 0 || h.age > g.maxAge) {
     h.alive = false;
+    detritusField[h.x][h.y] = Math.min(10.0, detritusField[h.x][h.y] + 3.0);
   }
 }
 
-// Environmental influx: Spores and wanderers maintain open-system equilibrium
-function environmentalInflux() {
+function environmentalBalance() {
   const plantCount = entities.filter(e => e.type === "plant").length;
   const herbCount = entities.filter(e => e.type === "herbivore").length;
 
-  // Spore drift if plant population dips critically low
-  if (plantCount < 15 && Math.random() < 0.15) {
+  // Gentle spore germination on rich nutrient soil
+  if (plantCount < 20 && Math.random() < 0.2) {
     const rx = Math.floor(Math.random() * WIDTH);
     const ry = Math.floor(Math.random() * HEIGHT);
-    if (!grid[rx][ry]) {
+    if (!grid[rx][ry] && soilNutrients[rx][ry] > 2.5) {
       const p = createPlant(rx, ry);
       grid[rx][ry] = p;
       entities.push(p);
     }
   }
 
-  // Wandering migrant if herbivore population collapses but plants thrive
-  if (herbCount === 0 && plantCount > 60 && Math.random() < 0.05) {
+  // Ecological re-entry when canopy recovers
+  if (herbCount === 0 && plantCount > 70 && Math.random() < 0.04) {
     const rx = Math.floor(Math.random() * WIDTH);
     const ry = Math.floor(Math.random() * HEIGHT);
     if (!grid[rx][ry]) {
       const h = createHerbivore(rx, ry);
       grid[rx][ry] = h;
       entities.push(h);
-      logLine("🌿 Distant Migration: An herbivore drifted into lush grazing grounds.", "event");
+      logLine("🐾 Pioneer Lineage: A new grazer lineage colonized the nutrient-dense foliage.", "event");
     }
   }
 }
@@ -338,6 +377,7 @@ function cleanupDead() {
 
 function step() {
   tick++;
+  cycleSoilAndDetritus();
   shuffle(entities);
 
   for (const e of entities) {
@@ -346,7 +386,7 @@ function step() {
     else if (e.type === "herbivore") updateHerbivore(e);
   }
 
-  environmentalInflux();
+  environmentalBalance();
   cleanupDead();
 
   if (tick % EPOCH_EVERY === 0) {
@@ -355,7 +395,7 @@ function step() {
   }
 }
 
-// ---------- Chronicle & Analysis ----------
+// ---------- Chronicle Logging ----------
 const logEl = document.getElementById("log");
 
 function clearLog() {
@@ -382,28 +422,30 @@ function logEpoch() {
 
   const avgGrowth = pCount > 0 ? (plants.reduce((s, p) => s + p.genome.growthRate, 0) / pCount).toFixed(2) : 0;
   const avgScent = hCount > 0 ? (herbs.reduce((s, h) => s + h.genome.sensoryRadius, 0) / hCount).toFixed(1) : 0;
-  const avgSpeed = hCount > 0 ? (herbs.reduce((s, h) => s + h.genome.movementCost, 0) / hCount).toFixed(2) : 0;
+  const avgBite = hCount > 0 ? (herbs.reduce((s, h) => s + h.genome.biteEfficiency, 0) / hCount).toFixed(1) : 0;
 
   populationHistory.push({ epoch, pCount, hCount });
   if (populationHistory.length > 20) populationHistory.shift();
 
-  logLine(`Epoch ${epoch} (Tick ${tick}) — Plants: ${pCount} (avg growth: ${avgGrowth}) | Herbivores: ${hCount} (avg scent: ${avgScent})`, "epoch");
+  logLine(`Epoch ${epoch} (Tick ${tick}) — Canopy: ${pCount} (growth: ${avgGrowth}) | Grazer Kin: ${hCount} (scent: ${avgScent}, bite: ${avgBite})`, "epoch");
 
-  // Emergent Pattern Detectors
+  // Higher-order emergent trajectory detectors
   if (populationHistory.length >= 6) {
     const recent = populationHistory.slice(-6);
     const pTrend = recent[recent.length - 1].pCount - recent[0].pCount;
     const hTrend = recent[recent.length - 1].hCount - recent[0].hCount;
 
-    if (pTrend < -40 && hTrend > 15) {
-      logLine("⚡ Predator Wave: Herbivores surging; heavy grazing pressure reducing canopy.", "event");
-    } else if (pTrend > 40 && hTrend < -10) {
-      logLine("🌾 Canopy Rebound: Vegetation expanding across sparse grazer territory.", "event");
+    if (Math.abs(pTrend) < 15 && Math.abs(hTrend) < 10 && pCount > 40 && hCount > 10) {
+      logLine("⚖️ Dynamic Equilibrium: Co-existing steady-state established between foliage and grazers.", "event");
+    } else if (pTrend < -35 && hTrend > 15) {
+      logLine("🌊 Grazing Front: High bite efficiency driving localized vegetation clearing.", "event");
+    } else if (pTrend > 35 && hTrend < -8) {
+      logLine("🌿 Soil Enrichment: Microbial decomposition stimulating canopy expansion.", "event");
     }
   }
 }
 
-// ---------- Rendering ----------
+// ---------- Visual Rendering ----------
 const canvas = document.getElementById("sim");
 const ctx = canvas.getContext("2d");
 
@@ -419,26 +461,45 @@ function render() {
       const px = x * CELL_SIZE;
       const py = y * CELL_SIZE;
 
+      // Base soil: render dark earth with subtle nutrient/detritus shading
+      const detritus = detritusField[x][y];
+      const nutrient = soilNutrients[x][y];
+
       if (!e) {
-        ctx.fillStyle = "#070a18";
+        if (detritus > 0.8) {
+          // Rich compost brown
+          const detritusTone = Math.min(22, 10 + detritus * 2);
+          ctx.fillStyle = `hsl(30, 45%, ${detritusTone}%)`;
+        } else if (nutrient > 5.0) {
+          // Deep fertile substrate
+          ctx.fillStyle = "#0a1324";
+        } else {
+          ctx.fillStyle = "#070a18";
+        }
         ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
         continue;
       }
 
       if (e.type === "plant") {
-        const energyTone = Math.min(45, 20 + e.energy * 2.5);
-        ctx.fillStyle = `hsl(135, 65%, ${energyTone}%)`;
+        // Foliage hue shifts with growth rate; brightness with energy
+        const hue = 125 + Math.min(25, (e.genome.growthRate - 1.0) * 15);
+        const energyTone = Math.min(48, 22 + e.energy * 2.8);
+        ctx.fillStyle = `hsl(${hue}, 68%, ${energyTone}%)`;
         ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
       } else if (e.type === "herbivore") {
-        const energyTone = Math.min(55, 35 + e.energy * 1.5);
-        ctx.fillStyle = `hsl(24, 90%, ${energyTone}%)`;
+        // Lineage trait coloring: sensory specialization shifts towards magenta/crimson; bite efficiency towards golden amber
+        const scentOffset = (e.genome.sensoryRadius - 3) * 12;
+        const hue = Math.max(8, Math.min(45, 24 - scentOffset));
+        const energyTone = Math.min(60, 38 + e.energy * 1.4);
+
+        ctx.fillStyle = `hsl(${hue}, 92%, ${energyTone}%)`;
         ctx.fillRect(px + 2, py + 2, CELL_SIZE - 4, CELL_SIZE - 4);
       }
     }
   }
 }
 
-// ---------- Loop ----------
+// ---------- Simulation Engine Loop ----------
 let lastTime = 0;
 function loop(timestamp) {
   if (!lastTime) lastTime = timestamp;
