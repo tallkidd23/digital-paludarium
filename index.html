@@ -13,12 +13,26 @@
         <h1>Synapse Reef</h1>
         <span class="live-pill"><span class="pulse-dot"></span> LIVE ECOSYSTEM</span>
       </div>
-      <p class="subtitle">Self-organizing brain-coral geometry, closed-loop soil memory, and real-time trophic dynamics.</p>
+      <p class="subtitle">Self-organizing brain-coral geometry, closed-loop soil memory, and interactive genetic stewardship.</p>
     </header>
 
     <main>
       <div class="canvas-wrapper">
         <canvas id="sim"></canvas>
+      </div>
+
+      <!-- God-Hand Interactive Stewardship Controls -->
+      <div class="controls-panel">
+        <div class="controls-header">
+          <h2>Reef Stewardship (Interact & Seed)</h2>
+          <span class="active-tool-label">Active: <b id="activeToolName">Drop Spores</b></span>
+        </div>
+        <div class="tools-grid">
+          <button class="tool-btn active" data-tool="plant">🌱 Drop Spores</button>
+          <button class="tool-btn" data-tool="grazer">🟠 Introduce Grazers</button>
+          <button class="tool-btn" data-tool="predator">🔴 Summon Apex</button>
+          <button class="tool-btn" data-tool="nutrient">✨ Enrich Substrate</button>
+        </div>
       </div>
 
       <!-- Live Trophic Wave Dynamics (Sparkline Graph) -->
