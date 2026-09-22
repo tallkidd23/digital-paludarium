@@ -13,12 +13,27 @@
         <h1>Synapse Reef</h1>
         <span class="live-pill"><span class="pulse-dot"></span> LIVE ECOSYSTEM</span>
       </div>
-      <p class="subtitle">Self-organizing brain-coral geometry, closed-loop soil memory, and interactive genetic stewardship.</p>
+      <p class="subtitle">Self-organizing brain-coral geometry, closed-loop soil memory, and environmental climate shifts.</p>
     </header>
 
     <main>
       <div class="canvas-wrapper">
         <canvas id="sim"></canvas>
+      </div>
+
+      <!-- Live Environmental Weather & Climate HUD -->
+      <div class="climate-bar">
+        <div class="climate-item">
+          <span class="climate-icon" id="climateIcon">☀️</span>
+          <div class="climate-meta">
+            <span class="climate-label">Environmental Regime</span>
+            <b class="climate-val" id="climateName">Verdant Solstice</b>
+          </div>
+        </div>
+        <div class="climate-item stats-item">
+          <span class="climate-meta-stat">Sunlight: <b id="sunStat">100%</b></span>
+          <span class="climate-meta-stat">Soil Moisture: <b id="soilStat">Optimal</b></span>
+        </div>
       </div>
 
       <!-- God-Hand Interactive Stewardship Controls -->

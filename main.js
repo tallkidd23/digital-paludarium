@@ -18,6 +18,16 @@ let entities = [];
 let tick = 0;
 let epoch = 0;
 
+// Environmental Climate & Seasonal Cycle System
+const CLIMATES = [
+  { name: "Verdant Solstice", icon: "☀️", sunFactor: 1.05, moistureBonus: 0.005, desc: "Optimal sunlight and rapid root mineral synthesis." },
+  { name: "Nutrient Monsoon", icon: "🌧️", sunFactor: 0.85, moistureBonus: 0.015, desc: "High rainfall accelerating detritus breakdown into fertile loam." },
+  { name: "Arid Eclipse", icon: "🌘", sunFactor: 0.65, moistureBonus: 0.001, desc: "Dimmed canopy light; grazers and predators rely on stored metabolism." },
+  { name: "Bioluminescent Bloom", icon: "✨", sunFactor: 1.25, moistureBonus: 0.008, desc: "High energetic excitation stimulating spore proliferation." }
+];
+let currentClimateIndex = 0;
+let climateTicksRemaining = 600;
+
 // High-resolution timeseries history for continuous sparkline rendering
 const MAX_GRAPH_POINTS = 160;
 let timeSeriesHistory = [];
@@ -25,8 +35,6 @@ let epochHistory = [];
 
 // Interactive stewardship tool state ('plant' | 'grazer' | 'predator' | 'nutrient')
 let activeTool = "plant";
-
-// Visual feedback ripples from user interactions
 let activeRipples = [];
 
 // ---------- Grid & Field Helpers ----------
@@ -62,7 +70,6 @@ function randomEmptyNeighbor(x, y) {
   return opts[Math.floor(Math.random() * opts.length)];
 }
 
-// Find nearest unoccupied cell if target is occupied
 function findNearestEmptyCell(targetX, targetY, maxRadius = 4) {
   if (!grid[targetX][targetY]) return [targetX, targetY];
   for (let r = 1; r <= maxRadius; r++) {
@@ -229,9 +236,12 @@ function initWorld() {
 
   tick = 0;
   epoch = 0;
+  currentClimateIndex = 0;
+  climateTicksRemaining = 600;
   clearLog();
   logLine("🌱 Epoch 0 — Three-tier trophic web active: Foliage, Grazers, and Apex Predators.", "epoch");
   updateEpochBadge();
+  updateClimateHUD();
 }
 
 function shuffle(arr) {
@@ -241,7 +251,36 @@ function shuffle(arr) {
   }
 }
 
+function updateClimateCycle() {
+  climateTicksRemaining--;
+  if (climateTicksRemaining <= 0) {
+    currentClimateIndex = (currentClimateIndex + 1) % CLIMATES.length;
+    climateTicksRemaining = 600 + Math.floor(Math.random() * 300);
+    const climate = CLIMATES[currentClimateIndex];
+    logLine(`🌍 Climate Shift: Entered '${climate.name}' ${climate.icon} — ${climate.desc}`, "epoch");
+    updateClimateHUD();
+  }
+}
+
+function updateClimateHUD() {
+  const climate = CLIMATES[currentClimateIndex];
+  const iconEl = document.getElementById("climateIcon");
+  const nameEl = document.getElementById("climateName");
+  const sunEl = document.getElementById("sunStat");
+  const soilEl = document.getElementById("soilStat");
+
+  if (iconEl) iconEl.textContent = climate.icon;
+  if (nameEl) nameEl.textContent = climate.name;
+  if (sunEl) sunEl.textContent = `${Math.round(climate.sunFactor * 100)}%`;
+  if (soilEl) {
+    if (climate.moistureBonus > 0.01) soilEl.textContent = "High Loam";
+    else if (climate.moistureBonus < 0.003) soilEl.textContent = "Arid";
+    else soilEl.textContent = "Optimal";
+  }
+}
+
 function cycleSoilAndDetritus() {
+  const climate = CLIMATES[currentClimateIndex];
   for (let x = 0; x < WIDTH; x++) {
     for (let y = 0; y < HEIGHT; y++) {
       if (detritusField[x][y] > 0.05) {
@@ -249,13 +288,14 @@ function cycleSoilAndDetritus() {
         detritusField[x][y] -= decomposed;
         soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + decomposed * 1.3);
       }
-      soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + 0.004);
+      soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + climate.moistureBonus);
     }
   }
 }
 
 function updatePlant(p) {
   const g = p.genome;
+  const climate = CLIMATES[currentClimateIndex];
   const neighbors = getNeighbors(p.x, p.y);
   const plantNeighbors = neighbors.filter(([nx, ny]) => grid[nx][ny]?.type === "plant").length;
 
@@ -266,7 +306,7 @@ function updatePlant(p) {
   if (plantNeighbors >= g.crowdingTolerance) {
     p.energy -= g.maintenanceCost * 1.4;
   } else {
-    p.energy += (g.growthRate + soilBonus) * (1 - plantNeighbors / 9.0);
+    p.energy += (g.growthRate * climate.sunFactor + soilBonus) * (1 - plantNeighbors / 9.0);
     p.energy -= g.maintenanceCost;
   }
   p.age++;
@@ -299,7 +339,6 @@ function updateHerbivore(h) {
 
   let ate = false;
 
-  // 1. Graze plant
   if (h.energy < g.maxSatiation) {
     for (const [nx, ny] of immediateNeighbors) {
       const cell = grid[nx][ny];
@@ -318,7 +357,6 @@ function updateHerbivore(h) {
     }
   }
 
-  // 2. Olfactory navigation
   if (!ate) {
     let bestTarget = null;
     let minDist = Infinity;
@@ -398,7 +436,6 @@ function updateCarnivore(c) {
 
   let hunted = false;
 
-  // 1. Hunt adjacent herbivore
   for (const [nx, ny] of immediateNeighbors) {
     const prey = grid[nx][ny];
     if (prey && prey.type === "herbivore" && prey.alive) {
@@ -411,7 +448,6 @@ function updateCarnivore(c) {
     }
   }
 
-  // 2. Stalk nearest grazer
   if (!hunted) {
     let preyTarget = null;
     let minDist = Infinity;
@@ -480,7 +516,6 @@ function updateCarnivore(c) {
   }
 }
 
-// Continuous background ecological replenishment
 function environmentalBalance() {
   const plantCount = entities.filter(e => e.type === "plant").length;
   const herbCount = entities.filter(e => e.type === "herbivore").length;
@@ -496,7 +531,6 @@ function environmentalBalance() {
     }
   }
 
-  // Consistent grazer colonization whenever foliage is healthy
   if (herbCount < 4 && plantCount > 40 && Math.random() < 0.12) {
     const rx = Math.floor(Math.random() * WIDTH);
     const ry = Math.floor(Math.random() * HEIGHT);
@@ -508,7 +542,6 @@ function environmentalBalance() {
     }
   }
 
-  // Apex entry when grazer herd swells
   if (carnCount === 0 && herbCount > 45 && Math.random() < 0.08) {
     const rx = Math.floor(Math.random() * WIDTH);
     const ry = Math.floor(Math.random() * HEIGHT);
@@ -550,6 +583,7 @@ function recordTimeSeries() {
 
 function step() {
   tick++;
+  updateClimateCycle();
   cycleSoilAndDetritus();
   shuffle(entities);
 
@@ -645,7 +679,6 @@ function resizeGraph() {
 }
 window.addEventListener("resize", resizeGraph);
 
-// --- User Interaction ("God Hand" Seeding with Displace/Fallback) ---
 function handleCanvasPointer(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
@@ -659,7 +692,6 @@ function handleCanvasPointer(clientX, clientY) {
 
   if (gridX < 0 || gridX >= WIDTH || gridY < 0 || gridY >= HEIGHT) return;
 
-  // Add visual glow ripple at tap coordinate
   activeRipples.push({
     x: canvasX,
     y: canvasY,
@@ -670,7 +702,6 @@ function handleCanvasPointer(clientX, clientY) {
   });
 
   if (activeTool === "plant") {
-    // If cell occupied by another type, overwrite or find neighbor
     const emptyPos = findNearestEmptyCell(gridX, gridY);
     if (emptyPos) {
       const [ex, ey] = emptyPos;
@@ -679,7 +710,6 @@ function handleCanvasPointer(clientX, clientY) {
       entities.push(p);
       logLine(`🌱 Hand of the Steward: Seeded canopy spore near (${ex}, ${ey}).`, "event");
     } else {
-      // Overwrite current cell with fresh plant
       const old = grid[gridX][gridY];
       if (old) old.alive = false;
       const p = createPlant(gridX, gridY);
@@ -720,7 +750,6 @@ function handleCanvasPointer(clientX, clientY) {
       logLine(`🔴 Hand of the Steward: Summoned apex predator at (${gridX}, ${gridY}).`, "event");
     }
   } else if (activeTool === "nutrient") {
-    // Enrich local 3x3 substrate
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = -1; dy <= 1; dy++) {
         const nx = (gridX + dx + WIDTH) % WIDTH;
@@ -736,7 +765,6 @@ canvas.addEventListener("pointerdown", (e) => {
   handleCanvasPointer(e.clientX, e.clientY);
 });
 
-// Setup tool buttons
 document.querySelectorAll(".tool-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tool-btn").forEach((b) => b.classList.remove("active"));
@@ -793,7 +821,6 @@ function renderWorld() {
     }
   }
 
-  // Render glowing ripple effects from user taps
   for (let i = activeRipples.length - 1; i >= 0; i--) {
     const r = activeRipples[i];
     ctx.beginPath();
