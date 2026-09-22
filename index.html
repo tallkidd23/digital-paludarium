@@ -2,20 +2,34 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Digital Paludarium</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Synapse Reef | An Emergent Life Simulation</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="container">
-    <h1>Digital Paludarium</h1>
-    <p class="subtitle">A minimal emergent life sim</p>
+    <header>
+      <h1>Synapse Reef</h1>
+      <p class="subtitle">An emergent digital ecosystem — brain coral geometry, heritable genomes, and soil nutrient memory.</p>
+    </header>
 
-    <canvas id="sim"></canvas>
+    <main>
+      <div class="canvas-wrapper">
+        <canvas id="sim"></canvas>
+      </div>
 
-    <div class="panel">
-      <h2>Chronicle</h2>
-      <div id="log" class="log"></div>
-    </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Ecosystem Chronicle</h2>
+          <span class="pulse-indicator"></span>
+        </div>
+        <div id="log" class="log"></div>
+      </div>
+    </main>
+
+    <footer>
+      <p class="meta-tag">An open-source artifact exploring emergent systems & biological computation.</p>
+    </footer>
   </div>
 
   <script src="main.js"></script>
