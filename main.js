@@ -26,6 +26,9 @@ let epochHistory = [];
 // Interactive stewardship tool state ('plant' | 'grazer' | 'predator' | 'nutrient')
 let activeTool = "plant";
 
+// Visual feedback ripples from user interactions
+let activeRipples = [];
+
 // ---------- Grid & Field Helpers ----------
 function createGrid() {
   return Array.from({ length: WIDTH }, () => Array(HEIGHT).fill(null));
@@ -59,6 +62,21 @@ function randomEmptyNeighbor(x, y) {
   return opts[Math.floor(Math.random() * opts.length)];
 }
 
+// Find nearest unoccupied cell if target is occupied
+function findNearestEmptyCell(targetX, targetY, maxRadius = 4) {
+  if (!grid[targetX][targetY]) return [targetX, targetY];
+  for (let r = 1; r <= maxRadius; r++) {
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dy = -r; dy <= r; dy++) {
+        const nx = (targetX + dx + WIDTH) % WIDTH;
+        const ny = (targetY + dy + HEIGHT) % HEIGHT;
+        if (!grid[nx][ny]) return [nx, ny];
+      }
+    }
+  }
+  return null;
+}
+
 // ---------- Genomes & Heritable Traits ----------
 function defaultPlantGenome() {
   return {
@@ -75,11 +93,11 @@ function defaultPlantGenome() {
 
 function defaultHerbivoreGenome() {
   return {
-    baseMetabolism: 0.40,       // Lowered to prevent premature grazer starvation
+    baseMetabolism: 0.40,
     movementCost: 0.25,
-    sensoryRadius: 4,          // Sharper olfactory range
+    sensoryRadius: 4,
     maxSatiation: 24.0,
-    reproThreshold: 14.0,      // More accessible reproduction threshold
+    reproThreshold: 14.0,
     reproCost: 7.0,
     biteEfficiency: 5.0,
     maxAge: 260,
@@ -89,7 +107,7 @@ function defaultHerbivoreGenome() {
 
 function defaultCarnivoreGenome() {
   return {
-    baseMetabolism: 0.50,       // Tuned metabolism for sustainable stalking
+    baseMetabolism: 0.50,
     movementCost: 0.30,
     huntRadius: 5,
     maxSatiation: 32.0,
@@ -146,7 +164,7 @@ function createHerbivore(x, y, genome = null) {
     type: "herbivore",
     x,
     y,
-    energy: 14.0,              // Generous starting energy buffer
+    energy: 14.0,
     age: 0,
     genome: genome ? mutateGenome(genome) : defaultHerbivoreGenome(),
     alive: true,
@@ -173,6 +191,7 @@ function initWorld() {
   entities = [];
   timeSeriesHistory = [];
   epochHistory = [];
+  activeRipples = [];
 
   for (let x = 0; x < WIDTH; x++) {
     for (let y = 0; y < HEIGHT; y++) {
@@ -626,7 +645,7 @@ function resizeGraph() {
 }
 window.addEventListener("resize", resizeGraph);
 
-// --- User Interaction ("God Hand" Seeding) ---
+// --- User Interaction ("God Hand" Seeding with Displace/Fallback) ---
 function handleCanvasPointer(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
@@ -640,27 +659,65 @@ function handleCanvasPointer(clientX, clientY) {
 
   if (gridX < 0 || gridX >= WIDTH || gridY < 0 || gridY >= HEIGHT) return;
 
-  // Apply active stewardship action
+  // Add visual glow ripple at tap coordinate
+  activeRipples.push({
+    x: canvasX,
+    y: canvasY,
+    radius: 4,
+    maxRadius: 28,
+    alpha: 0.9,
+    tool: activeTool
+  });
+
   if (activeTool === "plant") {
-    if (!grid[gridX][gridY]) {
+    // If cell occupied by another type, overwrite or find neighbor
+    const emptyPos = findNearestEmptyCell(gridX, gridY);
+    if (emptyPos) {
+      const [ex, ey] = emptyPos;
+      const p = createPlant(ex, ey);
+      grid[ex][ey] = p;
+      entities.push(p);
+      logLine(`🌱 Hand of the Steward: Seeded canopy spore near (${ex}, ${ey}).`, "event");
+    } else {
+      // Overwrite current cell with fresh plant
+      const old = grid[gridX][gridY];
+      if (old) old.alive = false;
       const p = createPlant(gridX, gridY);
       grid[gridX][gridY] = p;
       entities.push(p);
-      logLine(`✨ Hand of the Steward: Seeded canopy spore at (${gridX}, ${gridY}).`, "event");
+      logLine(`🌱 Hand of the Steward: Planted canopy root at (${gridX}, ${gridY}).`, "event");
     }
   } else if (activeTool === "grazer") {
-    if (!grid[gridX][gridY]) {
+    const emptyPos = findNearestEmptyCell(gridX, gridY);
+    if (emptyPos) {
+      const [ex, ey] = emptyPos;
+      const h = createHerbivore(ex, ey);
+      grid[ex][ey] = h;
+      entities.push(h);
+      logLine(`🟠 Hand of the Steward: Introduced pioneer grazer near (${ex}, ${ey}).`, "event");
+    } else {
+      const old = grid[gridX][gridY];
+      if (old) old.alive = false;
       const h = createHerbivore(gridX, gridY);
       grid[gridX][gridY] = h;
       entities.push(h);
-      logLine(`✨ Hand of the Steward: Introduced pioneer grazer at (${gridX}, ${gridY}).`, "event");
+      logLine(`🟠 Hand of the Steward: Introduced pioneer grazer at (${gridX}, ${gridY}).`, "event");
     }
   } else if (activeTool === "predator") {
-    if (!grid[gridX][gridY]) {
+    const emptyPos = findNearestEmptyCell(gridX, gridY);
+    if (emptyPos) {
+      const [ex, ey] = emptyPos;
+      const c = createCarnivore(ex, ey);
+      grid[ex][ey] = c;
+      entities.push(c);
+      logLine(`🔴 Hand of the Steward: Summoned apex predator near (${ex}, ${ey}).`, "event");
+    } else {
+      const old = grid[gridX][gridY];
+      if (old) old.alive = false;
       const c = createCarnivore(gridX, gridY);
       grid[gridX][gridY] = c;
       entities.push(c);
-      logLine(`✨ Hand of the Steward: Summoned apex predator at (${gridX}, ${gridY}).`, "event");
+      logLine(`🔴 Hand of the Steward: Summoned apex predator at (${gridX}, ${gridY}).`, "event");
     }
   } else if (activeTool === "nutrient") {
     // Enrich local 3x3 substrate
@@ -668,7 +725,7 @@ function handleCanvasPointer(clientX, clientY) {
       for (let dy = -1; dy <= 1; dy++) {
         const nx = (gridX + dx + WIDTH) % WIDTH;
         const ny = (gridY + dy + HEIGHT) % HEIGHT;
-        soilNutrients[nx][ny] = Math.min(10.0, soilNutrients[nx][ny] + 4.0);
+        soilNutrients[nx][ny] = Math.min(10.0, soilNutrients[nx][ny] + 5.0);
       }
     }
     logLine(`✨ Hand of the Steward: Enriched soil mineral pocket around (${gridX}, ${gridY}).`, "event");
@@ -733,6 +790,30 @@ function renderWorld() {
         ctx.fillStyle = `hsl(345, 95%, ${energyTone}%)`;
         ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
       }
+    }
+  }
+
+  // Render glowing ripple effects from user taps
+  for (let i = activeRipples.length - 1; i >= 0; i--) {
+    const r = activeRipples[i];
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+    
+    let strokeColor = "rgba(56, 189, 248, ";
+    if (r.tool === "plant") strokeColor = "rgba(34, 197, 94, ";
+    else if (r.tool === "grazer") strokeColor = "rgba(249, 115, 22, ";
+    else if (r.tool === "predator") strokeColor = "rgba(244, 63, 94, ";
+    else if (r.tool === "nutrient") strokeColor = "rgba(250, 204, 21, ";
+
+    ctx.strokeStyle = strokeColor + r.alpha + ")";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    r.radius += 1.8;
+    r.alpha -= 0.05;
+
+    if (r.alpha <= 0) {
+      activeRipples.splice(i, 1);
     }
   }
 }
