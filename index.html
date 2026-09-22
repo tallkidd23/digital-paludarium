@@ -9,8 +9,11 @@
 <body>
   <div class="container">
     <header>
-      <h1>Synapse Reef</h1>
-      <p class="subtitle">An emergent digital ecosystem — brain coral geometry, heritable genomes, and soil nutrient memory.</p>
+      <div class="header-main">
+        <h1>Synapse Reef</h1>
+        <span class="live-pill"><span class="pulse-dot"></span> LIVE ECOSYSTEM</span>
+      </div>
+      <p class="subtitle">Self-organizing brain-coral geometry, closed-loop soil memory, and real-time trophic dynamics.</p>
     </header>
 
     <main>
@@ -18,10 +21,24 @@
         <canvas id="sim"></canvas>
       </div>
 
+      <!-- Live Trophic Wave Dynamics (Sparkline Graph) -->
+      <div class="graph-panel">
+        <div class="graph-header">
+          <h2>Trophic Wave Dynamics (Oscillation Curves)</h2>
+          <div class="legend">
+            <span class="legend-item"><span class="legend-dot plant-dot"></span> Canopy</span>
+            <span class="legend-item"><span class="legend-dot grazer-dot"></span> Grazers</span>
+            <span class="legend-item"><span class="legend-dot predator-dot"></span> Predators</span>
+          </div>
+        </div>
+        <canvas id="graphCanvas"></canvas>
+      </div>
+
+      <!-- Autonomous Chronicle Engine -->
       <div class="panel">
         <div class="panel-header">
           <h2>Ecosystem Chronicle</h2>
-          <span class="pulse-indicator"></span>
+          <span class="epoch-counter" id="epochBadge">Epoch 0</span>
         </div>
         <div id="log" class="log"></div>
       </div>

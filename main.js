@@ -3,21 +3,25 @@ const WIDTH = 50;
 const HEIGHT = 35;
 const CELL_SIZE = 14;
 
-const TICK_MS = 80;        // Fluid simulation cadence
-const EPOCH_EVERY = 250;   // Epoch chronicle interval
+const TICK_MS = 75;        // Fluid simulation speed
+const EPOCH_EVERY = 250;   // Chronicle epoch window
 
-const INITIAL_PLANT_DENSITY = 0.18;
-const INITIAL_HERBIVORE_COUNT = 18;
+const INITIAL_PLANT_DENSITY = 0.22;
+const INITIAL_HERBIVORE_COUNT = 16;
+const INITIAL_CARNIVORE_COUNT = 4;
 
 // ---------- State ----------
-let grid = createGrid();           // Primary biological occupancy
-let soilNutrients = createSoil();  // Continuous soil mineral field (0.0 to 10.0)
-let detritusField = createSoil();  // Organic decay matter
+let grid = createGrid();
+let soilNutrients = createSoil();
+let detritusField = createSoil();
 let entities = [];
 let tick = 0;
 let epoch = 0;
 
-let populationHistory = [];
+// High-resolution timeseries history for continuous sparkline rendering
+const MAX_GRAPH_POINTS = 160;
+let timeSeriesHistory = [];
+let epochHistory = [];
 
 // ---------- Grid & Field Helpers ----------
 function createGrid() {
@@ -52,15 +56,15 @@ function randomEmptyNeighbor(x, y) {
   return opts[Math.floor(Math.random() * opts.length)];
 }
 
-// ---------- Genomes & Heritable Variation ----------
+// ---------- Genomes & Heritable Traits ----------
 function defaultPlantGenome() {
   return {
-    growthRate: 1.1,
-    nutrientUptake: 0.4,       // Converts soil nutrients into extra vitality
-    maintenanceCost: 0.45,
-    reproThreshold: 7.5,
-    reproCost: 4.0,
-    maxAge: 280,
+    growthRate: 1.35,
+    nutrientUptake: 0.5,
+    maintenanceCost: 0.35,
+    reproThreshold: 6.5,
+    reproCost: 3.5,
+    maxAge: 320,
     crowdingTolerance: 5,
     mutationRate: 0.08,
   };
@@ -68,14 +72,28 @@ function defaultPlantGenome() {
 
 function defaultHerbivoreGenome() {
   return {
-    baseMetabolism: 0.45,
-    movementCost: 0.30,
-    sensoryRadius: 3,          // Scent foraging range
-    maxSatiation: 22.0,        // Stomach capacity: avoids instantaneous over-grazing
-    reproThreshold: 15.0,
-    reproCost: 8.0,
-    biteEfficiency: 7.0,
-    maxAge: 240,
+    baseMetabolism: 0.55,
+    movementCost: 0.35,
+    sensoryRadius: 3,
+    maxSatiation: 18.0,
+    reproThreshold: 18.0,
+    reproCost: 10.0,
+    biteEfficiency: 4.5,
+    maxAge: 220,
+    mutationRate: 0.08,
+  };
+}
+
+function defaultCarnivoreGenome() {
+  return {
+    baseMetabolism: 0.70,
+    movementCost: 0.40,
+    huntRadius: 4,
+    maxSatiation: 30.0,
+    reproThreshold: 24.0,
+    reproCost: 14.0,
+    huntEfficiency: 14.0,
+    maxAge: 260,
     mutationRate: 0.08,
   };
 }
@@ -92,28 +110,28 @@ function mutateGenome(genome) {
     let val = g[key] * factor;
 
     if (key.includes("Cost") || key === "baseMetabolism" || key === "movementCost") {
-      val = Math.max(0.08, Math.min(2.5, val));
-    } else if (key === "growthRate" || key === "nutrientUptake" || key === "biteEfficiency") {
-      val = Math.max(0.2, Math.min(12.0, val));
+      val = Math.max(0.1, Math.min(3.0, val));
+    } else if (key === "growthRate" || key === "nutrientUptake" || key === "biteEfficiency" || key === "huntEfficiency") {
+      val = Math.max(0.3, Math.min(20.0, val));
     } else if (key === "reproThreshold" || key === "reproCost" || key === "maxSatiation") {
-      val = Math.max(3.0, Math.min(35.0, val));
-    } else if (key === "crowdingTolerance" || key === "sensoryRadius") {
-      val = Math.max(1, Math.min(7, Math.round(val)));
+      val = Math.max(3.0, Math.min(45.0, val));
+    } else if (key === "crowdingTolerance" || key === "sensoryRadius" || key === "huntRadius") {
+      val = Math.max(1, Math.min(8, Math.round(val)));
     } else if (key === "maxAge") {
-      val = Math.max(60, Math.min(600, Math.round(val)));
+      val = Math.max(60, Math.min(650, Math.round(val)));
     }
     g[key] = val;
   }
   return g;
 }
 
-// ---------- Constructors ----------
+// ---------- Entity Constructors ----------
 function createPlant(x, y, genome = null) {
   return {
     type: "plant",
     x,
     y,
-    energy: 4.5,
+    energy: 5.0,
     age: 0,
     genome: genome ? mutateGenome(genome) : defaultPlantGenome(),
     alive: true,
@@ -132,18 +150,31 @@ function createHerbivore(x, y, genome = null) {
   };
 }
 
+function createCarnivore(x, y, genome = null) {
+  return {
+    type: "carnivore",
+    x,
+    y,
+    energy: 16.0,
+    age: 0,
+    genome: genome ? mutateGenome(genome) : defaultCarnivoreGenome(),
+    alive: true,
+  };
+}
+
 // ---------- Lifecycle & Physics ----------
 function initWorld() {
   grid = createGrid();
   soilNutrients = createSoil();
   detritusField = createSoil();
   entities = [];
-  populationHistory = [];
+  timeSeriesHistory = [];
+  epochHistory = [];
 
   for (let x = 0; x < WIDTH; x++) {
     for (let y = 0; y < HEIGHT; y++) {
       detritusField[x][y] = 0.0;
-      soilNutrients[x][y] = 2.0 + Math.random() * 3.0;
+      soilNutrients[x][y] = 2.5 + Math.random() * 3.5;
       if (Math.random() < INITIAL_PLANT_DENSITY) {
         const p = createPlant(x, y);
         grid[x][y] = p;
@@ -152,41 +183,51 @@ function initWorld() {
     }
   }
 
-  let placed = 0;
-  while (placed < INITIAL_HERBIVORE_COUNT) {
+  let placedH = 0;
+  while (placedH < INITIAL_HERBIVORE_COUNT) {
     const x = Math.floor(Math.random() * WIDTH);
     const y = Math.floor(Math.random() * HEIGHT);
     if (grid[x][y]) continue;
     const h = createHerbivore(x, y);
     grid[x][y] = h;
     entities.push(h);
-    placed++;
+    placedH++;
+  }
+
+  let placedC = 0;
+  while (placedC < INITIAL_CARNIVORE_COUNT) {
+    const x = Math.floor(Math.random() * WIDTH);
+    const y = Math.floor(Math.random() * HEIGHT);
+    if (grid[x][y]) continue;
+    const c = createCarnivore(x, y);
+    grid[x][y] = c;
+    entities.push(c);
+    placedC++;
   }
 
   tick = 0;
   epoch = 0;
   clearLog();
-  logLine("🌱 Epoch 0 — Microbial decomposition and metabolic homeostasis active.", "epoch");
+  logLine("🌱 Epoch 0 — Three-tier trophic web active: Foliage, Grazers, and Apex Predators.", "epoch");
+  updateEpochBadge();
 }
 
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [arr[j], arr[i]] = [arr[j], arr[i]];
+    [arr[j], arr[i]] = [arr[i], arr[j]];
   }
 }
 
 function cycleSoilAndDetritus() {
-  // Microbial decomposition loop: detritus breaks down into rich mineral soil
   for (let x = 0; x < WIDTH; x++) {
     for (let y = 0; y < HEIGHT; y++) {
       if (detritusField[x][y] > 0.05) {
-        const decomposed = detritusField[x][y] * 0.04;
+        const decomposed = detritusField[x][y] * 0.05;
         detritusField[x][y] -= decomposed;
-        soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + decomposed * 1.2);
+        soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + decomposed * 1.3);
       }
-      // Natural mineral diffusion across neighboring ground
-      soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + 0.003);
+      soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + 0.004);
     }
   }
 }
@@ -196,21 +237,18 @@ function updatePlant(p) {
   const neighbors = getNeighbors(p.x, p.y);
   const plantNeighbors = neighbors.filter(([nx, ny]) => grid[nx][ny]?.type === "plant").length;
 
-  // Root uptake from soil
   const availableSoil = soilNutrients[p.x][p.y];
   const soilBonus = Math.min(availableSoil, g.nutrientUptake);
-  soilNutrients[p.x][p.y] = Math.max(0.0, availableSoil - soilBonus * 0.5);
+  soilNutrients[p.x][p.y] = Math.max(0.0, availableSoil - soilBonus * 0.4);
 
-  // Canopy shading dynamics
   if (plantNeighbors >= g.crowdingTolerance) {
-    p.energy -= g.maintenanceCost * 1.6;
+    p.energy -= g.maintenanceCost * 1.4;
   } else {
-    p.energy += (g.growthRate + soilBonus) * (1 - plantNeighbors / 8.5);
+    p.energy += (g.growthRate + soilBonus) * (1 - plantNeighbors / 9.0);
     p.energy -= g.maintenanceCost;
   }
   p.age++;
 
-  // Proliferation
   if (p.energy >= g.reproThreshold && plantNeighbors < g.crowdingTolerance) {
     const pos = randomEmptyNeighbor(p.x, p.y);
     if (pos) {
@@ -222,7 +260,6 @@ function updatePlant(p) {
     }
   }
 
-  // Mortality leaves leaf litter in detritus
   if (p.energy <= 0 || p.age > g.maxAge) {
     p.alive = false;
     detritusField[p.x][p.y] = Math.min(8.0, detritusField[p.x][p.y] + 1.2);
@@ -240,19 +277,18 @@ function updateHerbivore(h) {
 
   let ate = false;
 
-  // 1. Satiation-gated grazing: grazers take bites rather than instantly decimating plants if full
+  // 1. Graze plant
   if (h.energy < g.maxSatiation) {
     for (const [nx, ny] of immediateNeighbors) {
       const cell = grid[nx][ny];
       if (cell && cell.type === "plant" && cell.alive) {
-        // Graze plant
         const bite = Math.min(cell.energy, g.biteEfficiency);
         cell.energy -= bite;
         h.energy = Math.min(g.maxSatiation, h.energy + bite);
-        if (cell.energy <= 0.5) {
+        if (cell.energy <= 0.6) {
           cell.alive = false;
           grid[nx][ny] = null;
-          detritusField[nx][ny] = Math.min(8.0, detritusField[nx][ny] + 0.8);
+          detritusField[nx][ny] = Math.min(8.0, detritusField[nx][ny] + 0.9);
         }
         ate = true;
         break;
@@ -260,7 +296,7 @@ function updateHerbivore(h) {
     }
   }
 
-  // 2. Sensory foraging scan
+  // 2. Olfactory navigation
   if (!ate) {
     let bestTarget = null;
     let minDist = Infinity;
@@ -312,7 +348,6 @@ function updateHerbivore(h) {
   h.energy -= g.baseMetabolism;
   h.age++;
 
-  // Reproduction
   if (h.energy >= g.reproThreshold) {
     const pos = randomEmptyNeighbor(h.x, h.y);
     if (pos) {
@@ -324,37 +359,139 @@ function updateHerbivore(h) {
     }
   }
 
-  // Mortality deposits biomass into detritus
   if (h.energy <= 0 || h.age > g.maxAge) {
     h.alive = false;
     detritusField[h.x][h.y] = Math.min(10.0, detritusField[h.x][h.y] + 3.0);
   }
 }
 
+function updateCarnivore(c) {
+  const g = c.genome;
+  const immediateNeighbors = [
+    [(c.x + 1) % WIDTH, c.y],
+    [(c.x - 1 + WIDTH) % WIDTH, c.y],
+    [c.x, (c.y + 1) % HEIGHT],
+    [c.x, (c.y - 1 + HEIGHT) % HEIGHT],
+  ];
+
+  let hunted = false;
+
+  // 1. Hunt adjacent herbivore
+  for (const [nx, ny] of immediateNeighbors) {
+    const prey = grid[nx][ny];
+    if (prey && prey.type === "herbivore" && prey.alive) {
+      prey.alive = false;
+      grid[nx][ny] = null;
+      c.energy = Math.min(g.maxSatiation, c.energy + g.huntEfficiency);
+      detritusField[nx][ny] = Math.min(10.0, detritusField[nx][ny] + 2.5);
+      hunted = true;
+      break;
+    }
+  }
+
+  // 2. Stalk nearest grazer
+  if (!hunted) {
+    let preyTarget = null;
+    let minDist = Infinity;
+    const r = Math.floor(g.huntRadius);
+
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dy = -r; dy <= r; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const sx = (c.x + dx + WIDTH) % WIDTH;
+        const sy = (c.y + dy + HEIGHT) % HEIGHT;
+        if (grid[sx][sy]?.type === "herbivore" && grid[sx][sy].alive) {
+          const dist = Math.abs(dx) + Math.abs(dy);
+          if (dist < minDist) {
+            minDist = dist;
+            preyTarget = { dx, dy };
+          }
+        }
+      }
+    }
+
+    let movePos = null;
+    if (preyTarget) {
+      const stepX = preyTarget.dx !== 0 ? (preyTarget.dx > 0 ? 1 : -1) : 0;
+      const stepY = preyTarget.dy !== 0 ? (preyTarget.dy > 0 ? 1 : -1) : 0;
+      const candX = (c.x + stepX + WIDTH) % WIDTH;
+      const candY = (c.y + stepY + HEIGHT) % HEIGHT;
+
+      if (!grid[candX][candY]) {
+        movePos = [candX, candY];
+      }
+    }
+
+    if (!movePos) {
+      const openSpots = immediateNeighbors.filter(([nx, ny]) => !grid[nx][ny]);
+      if (openSpots.length > 0) {
+        movePos = openSpots[Math.floor(Math.random() * openSpots.length)];
+      }
+    }
+
+    if (movePos) {
+      grid[c.x][c.y] = null;
+      c.x = movePos[0];
+      c.y = movePos[1];
+      grid[c.x][c.y] = c;
+      c.energy -= g.movementCost;
+    }
+  }
+
+  c.energy -= g.baseMetabolism;
+  c.age++;
+
+  if (c.energy >= g.reproThreshold) {
+    const pos = randomEmptyNeighbor(c.x, c.y);
+    if (pos) {
+      const [nx, ny] = pos;
+      const child = createCarnivore(nx, ny, g);
+      grid[nx][ny] = child;
+      entities.push(child);
+      c.energy -= g.reproCost;
+    }
+  }
+
+  if (c.energy <= 0 || c.age > g.maxAge) {
+    c.alive = false;
+    detritusField[c.x][c.y] = Math.min(10.0, detritusField[c.x][c.y] + 4.0);
+  }
+}
+
 function environmentalBalance() {
   const plantCount = entities.filter(e => e.type === "plant").length;
   const herbCount = entities.filter(e => e.type === "herbivore").length;
+  const carnCount = entities.filter(e => e.type === "carnivore").length;
 
-  // Gentle spore germination on rich nutrient soil
-  if (plantCount < 20 && Math.random() < 0.2) {
+  if (plantCount < 25 && Math.random() < 0.25) {
     const rx = Math.floor(Math.random() * WIDTH);
     const ry = Math.floor(Math.random() * HEIGHT);
-    if (!grid[rx][ry] && soilNutrients[rx][ry] > 2.5) {
+    if (!grid[rx][ry] && soilNutrients[rx][ry] > 2.0) {
       const p = createPlant(rx, ry);
       grid[rx][ry] = p;
       entities.push(p);
     }
   }
 
-  // Ecological re-entry when canopy recovers
-  if (herbCount === 0 && plantCount > 70 && Math.random() < 0.04) {
+  if (herbCount === 0 && plantCount > 60 && Math.random() < 0.05) {
     const rx = Math.floor(Math.random() * WIDTH);
     const ry = Math.floor(Math.random() * HEIGHT);
     if (!grid[rx][ry]) {
       const h = createHerbivore(rx, ry);
       grid[rx][ry] = h;
       entities.push(h);
-      logLine("🐾 Pioneer Lineage: A new grazer lineage colonized the nutrient-dense foliage.", "event");
+      logLine("🐾 Grazer Migration: Pioneer grazers arrived on lush canopy islands.", "event");
+    }
+  }
+
+  if (carnCount === 0 && herbCount > 80 && Math.random() < 0.06) {
+    const rx = Math.floor(Math.random() * WIDTH);
+    const ry = Math.floor(Math.random() * HEIGHT);
+    if (!grid[rx][ry]) {
+      const c = createCarnivore(rx, ry);
+      grid[rx][ry] = c;
+      entities.push(c);
+      logLine("🐺 Apex Scent: A predator entered the territory pursuing dense grazer herds.", "event");
     }
   }
 }
@@ -375,6 +512,17 @@ function cleanupDead() {
   entities = alive;
 }
 
+function recordTimeSeries() {
+  const pCount = entities.filter(e => e.type === "plant").length;
+  const hCount = entities.filter(e => e.type === "herbivore").length;
+  const cCount = entities.filter(e => e.type === "carnivore").length;
+
+  timeSeriesHistory.push({ p: pCount, h: hCount, c: cCount });
+  if (timeSeriesHistory.length > MAX_GRAPH_POINTS) {
+    timeSeriesHistory.shift();
+  }
+}
+
 function step() {
   tick++;
   cycleSoilAndDetritus();
@@ -384,19 +532,31 @@ function step() {
     if (!e.alive) continue;
     if (e.type === "plant") updatePlant(e);
     else if (e.type === "herbivore") updateHerbivore(e);
+    else if (e.type === "carnivore") updateCarnivore(e);
   }
 
   environmentalBalance();
   cleanupDead();
 
+  // Record point every 4 ticks for smooth oscillation curve
+  if (tick % 4 === 0) {
+    recordTimeSeries();
+  }
+
   if (tick % EPOCH_EVERY === 0) {
     epoch++;
+    updateEpochBadge();
     logEpoch();
   }
 }
 
 // ---------- Chronicle Logging ----------
 const logEl = document.getElementById("log");
+const epochBadge = document.getElementById("epochBadge");
+
+function updateEpochBadge() {
+  if (epochBadge) epochBadge.textContent = `Epoch ${epoch} (Tick ${tick})`;
+}
 
 function clearLog() {
   logEl.textContent = "";
@@ -416,31 +576,29 @@ function logLine(text, cls = "event") {
 function logEpoch() {
   const plants = entities.filter(e => e.type === "plant");
   const herbs = entities.filter(e => e.type === "herbivore");
+  const carns = entities.filter(e => e.type === "carnivore");
 
   const pCount = plants.length;
   const hCount = herbs.length;
+  const cCount = carns.length;
 
   const avgGrowth = pCount > 0 ? (plants.reduce((s, p) => s + p.genome.growthRate, 0) / pCount).toFixed(2) : 0;
   const avgScent = hCount > 0 ? (herbs.reduce((s, h) => s + h.genome.sensoryRadius, 0) / hCount).toFixed(1) : 0;
-  const avgBite = hCount > 0 ? (herbs.reduce((s, h) => s + h.genome.biteEfficiency, 0) / hCount).toFixed(1) : 0;
 
-  populationHistory.push({ epoch, pCount, hCount });
-  if (populationHistory.length > 20) populationHistory.shift();
+  epochHistory.push({ epoch, pCount, hCount, cCount });
+  if (epochHistory.length > 20) epochHistory.shift();
 
-  logLine(`Epoch ${epoch} (Tick ${tick}) — Canopy: ${pCount} (growth: ${avgGrowth}) | Grazer Kin: ${hCount} (scent: ${avgScent}, bite: ${avgBite})`, "epoch");
+  logLine(`Epoch ${epoch} (Tick ${tick}) — Canopy: ${pCount} | Grazers: ${hCount} | Predators: ${cCount}`, "epoch");
 
-  // Higher-order emergent trajectory detectors
-  if (populationHistory.length >= 6) {
-    const recent = populationHistory.slice(-6);
+  if (epochHistory.length >= 6) {
+    const recent = epochHistory.slice(-6);
     const pTrend = recent[recent.length - 1].pCount - recent[0].pCount;
     const hTrend = recent[recent.length - 1].hCount - recent[0].hCount;
 
-    if (Math.abs(pTrend) < 15 && Math.abs(hTrend) < 10 && pCount > 40 && hCount > 10) {
-      logLine("⚖️ Dynamic Equilibrium: Co-existing steady-state established between foliage and grazers.", "event");
-    } else if (pTrend < -35 && hTrend > 15) {
-      logLine("🌊 Grazing Front: High bite efficiency driving localized vegetation clearing.", "event");
-    } else if (pTrend > 35 && hTrend < -8) {
-      logLine("🌿 Soil Enrichment: Microbial decomposition stimulating canopy expansion.", "event");
+    if (cCount > 5 && hTrend < -20) {
+      logLine("⚡ Apex Pressure: Predators regulating grazer population; foliage rebounding.", "event");
+    } else if (pTrend > 30 && hTrend > 10 && cCount > 0) {
+      logLine("⚖️ Tri-Trophic Harmony: Balanced energy flow across foliage, herd, and pack.", "event");
     }
   }
 }
@@ -452,7 +610,18 @@ const ctx = canvas.getContext("2d");
 canvas.width = WIDTH * CELL_SIZE;
 canvas.height = HEIGHT * CELL_SIZE;
 
-function render() {
+const graphCanvas = document.getElementById("graphCanvas");
+const gCtx = graphCanvas ? graphCanvas.getContext("2d") : null;
+
+function resizeGraph() {
+  if (graphCanvas) {
+    graphCanvas.width = graphCanvas.parentElement.clientWidth - 32;
+    graphCanvas.height = 90;
+  }
+}
+window.addEventListener("resize", resizeGraph);
+
+function renderWorld() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (let x = 0; x < WIDTH; x++) {
@@ -461,17 +630,14 @@ function render() {
       const px = x * CELL_SIZE;
       const py = y * CELL_SIZE;
 
-      // Base soil: render dark earth with subtle nutrient/detritus shading
       const detritus = detritusField[x][y];
       const nutrient = soilNutrients[x][y];
 
       if (!e) {
         if (detritus > 0.8) {
-          // Rich compost brown
           const detritusTone = Math.min(22, 10 + detritus * 2);
           ctx.fillStyle = `hsl(30, 45%, ${detritusTone}%)`;
         } else if (nutrient > 5.0) {
-          // Deep fertile substrate
           ctx.fillStyle = "#0a1324";
         } else {
           ctx.fillStyle = "#070a18";
@@ -481,25 +647,76 @@ function render() {
       }
 
       if (e.type === "plant") {
-        // Foliage hue shifts with growth rate; brightness with energy
         const hue = 125 + Math.min(25, (e.genome.growthRate - 1.0) * 15);
         const energyTone = Math.min(48, 22 + e.energy * 2.8);
         ctx.fillStyle = `hsl(${hue}, 68%, ${energyTone}%)`;
         ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
       } else if (e.type === "herbivore") {
-        // Lineage trait coloring: sensory specialization shifts towards magenta/crimson; bite efficiency towards golden amber
         const scentOffset = (e.genome.sensoryRadius - 3) * 12;
-        const hue = Math.max(8, Math.min(45, 24 - scentOffset));
+        const hue = Math.max(14, Math.min(45, 28 - scentOffset));
         const energyTone = Math.min(60, 38 + e.energy * 1.4);
-
         ctx.fillStyle = `hsl(${hue}, 92%, ${energyTone}%)`;
         ctx.fillRect(px + 2, py + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+      } else if (e.type === "carnivore") {
+        const energyTone = Math.min(65, 42 + e.energy * 1.2);
+        ctx.fillStyle = `hsl(345, 95%, ${energyTone}%)`;
+        ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
       }
     }
   }
 }
 
-// ---------- Simulation Engine Loop ----------
+function renderSparkline() {
+  if (!gCtx || timeSeriesHistory.length < 2) return;
+
+  const w = graphCanvas.width;
+  const h = graphCanvas.height;
+
+  gCtx.clearRect(0, 0, w, h);
+
+  // Subtle grid lines
+  gCtx.strokeStyle = "#131d31";
+  gCtx.lineWidth = 1;
+  gCtx.beginPath();
+  gCtx.moveTo(0, h * 0.33); gCtx.lineTo(w, h * 0.33);
+  gCtx.moveTo(0, h * 0.66); gCtx.lineTo(w, h * 0.66);
+  gCtx.stroke();
+
+  // Find dynamic max population for scaling
+  let maxVal = 100;
+  for (const pt of timeSeriesHistory) {
+    if (pt.p > maxVal) maxVal = pt.p;
+    if (pt.h > maxVal) maxVal = pt.h;
+    if (pt.c * 3 > maxVal) maxVal = pt.c * 3;
+  }
+  maxVal *= 1.1;
+
+  function drawSeries(key, color, scaleFactor = 1.0) {
+    gCtx.strokeStyle = color;
+    gCtx.lineWidth = 2;
+    gCtx.beginPath();
+
+    const stepX = w / (MAX_GRAPH_POINTS - 1);
+    const offset = MAX_GRAPH_POINTS - timeSeriesHistory.length;
+
+    for (let i = 0; i < timeSeriesHistory.length; i++) {
+      const val = timeSeriesHistory[i][key] * scaleFactor;
+      const x = (i + offset) * stepX;
+      const y = h - (val / maxVal) * (h - 8) - 4;
+
+      if (i === 0) gCtx.moveTo(x, y);
+      else gCtx.lineTo(x, y);
+    }
+    gCtx.stroke();
+  }
+
+  // Draw Plant Canopy (Green), Grazers (Orange), Apex Predators (Pink, boosted 2.5x for clarity)
+  drawSeries("p", "#22c55e", 1.0);
+  drawSeries("h", "#f97316", 1.0);
+  drawSeries("c", "#f43f5e", 2.5);
+}
+
+// ---------- Engine Loop ----------
 let lastTime = 0;
 function loop(timestamp) {
   if (!lastTime) lastTime = timestamp;
@@ -507,12 +724,14 @@ function loop(timestamp) {
 
   if (elapsed > TICK_MS) {
     step();
-    render();
+    renderWorld();
+    renderSparkline();
     lastTime = timestamp;
   }
 
   requestAnimationFrame(loop);
 }
 
+resizeGraph();
 initWorld();
 requestAnimationFrame(loop);
