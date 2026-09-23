@@ -1,9 +1,14 @@
+// =====================================================================
+// SYNAPSE REEF v0.3 — Neural Synaptic Filament & Action-Potential Engine
+// Turing Reaction-Diffusion + Lotka-Volterra + Ramón y Cajal Neural Net
+// =====================================================================
+
 // ---------- Configuration ----------
 const WIDTH = 50;
 const HEIGHT = 35;
 const CELL_SIZE = 14;
 
-const TICK_MS = 75;        // Fluid simulation speed
+const TICK_MS = 75;        // Fluid simulation cadence
 const EPOCH_EVERY = 250;   // Chronicle epoch window
 
 const INITIAL_PLANT_DENSITY = 0.22;
@@ -17,6 +22,9 @@ let detritusField = createSoil();
 let entities = [];
 let tick = 0;
 let epoch = 0;
+
+// High-speed visual action potential particles that travel along synaptic axons
+let synapticSparks = [];
 
 // Environmental Climate & Seasonal Cycle System
 const CLIMATES = [
@@ -162,8 +170,67 @@ function createPlant(x, y, genome = null) {
     energy: 5.0,
     age: 0,
     genome: genome ? mutateGenome(genome) : defaultPlantGenome(),
+    pulse: 0,
+    defenseTimer: 0,
     alive: true,
   };
+}
+
+function spawnSynapticSpark(fromX, fromY, toX, toY, color = "#00f0ff") {
+  const px1 = fromX * CELL_SIZE + CELL_SIZE / 2;
+  const py1 = fromY * CELL_SIZE + CELL_SIZE / 2;
+  const px2 = toX * CELL_SIZE + CELL_SIZE / 2;
+  const py2 = toY * CELL_SIZE + CELL_SIZE / 2;
+
+  synapticSparks.push({
+    x: px1,
+    y: py1,
+    targetX: px2,
+    targetY: py2,
+    progress: 0,
+    speed: 0.18 + Math.random() * 0.12,
+    color,
+    radius: 2.2 + Math.random() * 1.5,
+  });
+}
+
+function triggerPlantPulse(startX, startY, strength = 1.0, depth = 4) {
+  const visited = new Set();
+  const queue = [{ x: startX, y: startY, s: strength, d: depth }];
+
+  while (queue.length > 0) {
+    const { x, y, s, d } = queue.shift();
+    const key = `${x},${y}`;
+    if (visited.has(key)) continue;
+    visited.add(key);
+
+    const cell = grid[x]?.[y];
+    if (cell && cell.type === "plant" && cell.alive) {
+      cell.pulse = Math.max(cell.pulse || 0, s);
+      cell.defenseTimer = Math.min(180, (cell.defenseTimer || 0) + Math.round(s * 80));
+
+      if (d > 1 && s > 0.15) {
+        for (const [nx, ny] of getNeighbors(x, y)) {
+          if (!visited.has(`${nx},${ny}`) && grid[nx]?.[ny]?.type === "plant") {
+            queue.push({ x: nx, y: ny, s: s * 0.82, d: d - 1 });
+            if (Math.random() < 0.85) {
+              spawnSynapticSpark(x, y, nx, ny, s > 0.6 ? "#00f0ff" : "#38bdf8");
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function decayPlantPulses() {
+  for (const entity of entities) {
+    if (entity.type !== "plant") continue;
+    entity.pulse = Math.max(0, (entity.pulse || 0) - 0.035);
+    if (entity.defenseTimer > 0) {
+      entity.defenseTimer--;
+    }
+  }
 }
 
 function createHerbivore(x, y, genome = null) {
@@ -199,6 +266,7 @@ function initWorld() {
   timeSeriesHistory = [];
   epochHistory = [];
   activeRipples = [];
+  synapticSparks = [];
 
   for (let x = 0; x < WIDTH; x++) {
     for (let y = 0; y < HEIGHT; y++) {
@@ -239,7 +307,7 @@ function initWorld() {
   currentClimateIndex = 0;
   climateTicksRemaining = 600;
   clearLog();
-  logLine("🌱 Epoch 0 — Three-tier trophic web active: Foliage, Grazers, and Apex Predators.", "epoch");
+  logLine("🌱 Epoch 0 — Synapse Reef v0.3 active: Neural axons, bioluminescent action potentials, & defensive calcification.", "epoch");
   updateEpochBadge();
   updateClimateHUD();
 }
@@ -343,7 +411,12 @@ function updateHerbivore(h) {
     for (const [nx, ny] of immediateNeighbors) {
       const cell = grid[nx][ny];
       if (cell && cell.type === "plant" && cell.alive) {
-        const bite = Math.min(cell.energy, g.biteEfficiency);
+        const isDefending = (cell.defenseTimer || 0) > 0;
+        const effectiveBite = isDefending ? g.biteEfficiency * 0.5 : g.biteEfficiency;
+        const bite = Math.min(cell.energy, effectiveBite);
+
+        triggerPlantPulse(nx, ny, 1.0, 4);
+
         cell.energy -= bite;
         h.energy = Math.min(g.maxSatiation, h.energy + bite);
         if (cell.energy <= 0.6) {
@@ -443,6 +516,7 @@ function updateCarnivore(c) {
       grid[nx][ny] = null;
       c.energy = Math.min(g.maxSatiation, c.energy + g.huntEfficiency);
       detritusField[nx][ny] = Math.min(10.0, detritusField[nx][ny] + 2.5);
+      triggerPlantPulse(nx, ny, 1.0, 5);
       hunted = true;
       break;
     }
@@ -585,6 +659,7 @@ function step() {
   tick++;
   updateClimateCycle();
   cycleSoilAndDetritus();
+  decayPlantPulses();
   shuffle(entities);
 
   for (const e of entities) {
@@ -640,9 +715,6 @@ function logEpoch() {
   const hCount = herbs.length;
   const cCount = carns.length;
 
-  const avgGrowth = pCount > 0 ? (plants.reduce((s, p) => s + p.genome.growthRate, 0) / pCount).toFixed(2) : 0;
-  const avgScent = hCount > 0 ? (herbs.reduce((s, h) => s + h.genome.sensoryRadius, 0) / hCount).toFixed(1) : 0;
-
   epochHistory.push({ epoch, pCount, hCount, cCount });
   if (epochHistory.length > 20) epochHistory.shift();
 
@@ -696,8 +768,8 @@ function handleCanvasPointer(clientX, clientY) {
     x: canvasX,
     y: canvasY,
     radius: 4,
-    maxRadius: 28,
-    alpha: 0.9,
+    maxRadius: 36,
+    alpha: 0.95,
     tool: activeTool
   });
 
@@ -708,6 +780,7 @@ function handleCanvasPointer(clientX, clientY) {
       const p = createPlant(ex, ey);
       grid[ex][ey] = p;
       entities.push(p);
+      triggerPlantPulse(ex, ey, 1.0, 4);
       logLine(`🌱 Hand of the Steward: Seeded canopy spore near (${ex}, ${ey}).`, "event");
     } else {
       const old = grid[gridX][gridY];
@@ -715,6 +788,7 @@ function handleCanvasPointer(clientX, clientY) {
       const p = createPlant(gridX, gridY);
       grid[gridX][gridY] = p;
       entities.push(p);
+      triggerPlantPulse(gridX, gridY, 1.0, 4);
       logLine(`🌱 Hand of the Steward: Planted canopy root at (${gridX}, ${gridY}).`, "event");
     }
   } else if (activeTool === "grazer") {
@@ -755,6 +829,7 @@ function handleCanvasPointer(clientX, clientY) {
         const nx = (gridX + dx + WIDTH) % WIDTH;
         const ny = (gridY + dy + HEIGHT) % HEIGHT;
         soilNutrients[nx][ny] = Math.min(10.0, soilNutrients[nx][ny] + 5.0);
+        triggerPlantPulse(nx, ny, 1.0, 4);
       }
     }
     logLine(`✨ Hand of the Steward: Enriched soil mineral pocket around (${gridX}, ${gridY}).`, "event");
@@ -776,6 +851,76 @@ document.querySelectorAll(".tool-btn").forEach((btn) => {
     }
   });
 });
+
+function renderSynapticFilaments() {
+  ctx.save();
+  for (let x = 0; x < WIDTH; x++) {
+    for (let y = 0; y < HEIGHT; y++) {
+      const e = grid[x][y];
+      if (!e || e.type !== "plant") continue;
+
+      const px1 = x * CELL_SIZE + CELL_SIZE / 2;
+      const py1 = y * CELL_SIZE + CELL_SIZE / 2;
+
+      const cardinalTargets = [
+        [(x + 1) % WIDTH, y],
+        [x, (y + 1) % HEIGHT]
+      ];
+
+      for (const [nx, ny] of cardinalTargets) {
+        const neighbor = grid[nx][ny];
+        if (neighbor && neighbor.type === "plant") {
+          const px2 = nx * CELL_SIZE + CELL_SIZE / 2;
+          const py2 = ny * CELL_SIZE + CELL_SIZE / 2;
+
+          if (Math.abs(px1 - px2) > CELL_SIZE * 2 || Math.abs(py1 - py2) > CELL_SIZE * 2) continue;
+
+          const activePulse = Math.max(e.pulse || 0, neighbor.pulse || 0);
+
+          if (activePulse > 0.05) {
+            ctx.strokeStyle = `rgba(0, 240, 255, ${Math.min(1.0, activePulse * 0.95)})`;
+            ctx.lineWidth = 1.6 + activePulse * 1.5;
+            ctx.shadowColor = "#00f0ff";
+            ctx.shadowBlur = 6 * activePulse;
+          } else {
+            ctx.strokeStyle = "rgba(16, 185, 129, 0.12)";
+            ctx.lineWidth = 0.75;
+            ctx.shadowBlur = 0;
+          }
+
+          ctx.beginPath();
+          ctx.moveTo(px1, py1);
+          ctx.lineTo(px2, py2);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function renderSynapticSparks() {
+  ctx.save();
+  for (let i = synapticSparks.length - 1; i >= 0; i--) {
+    const s = synapticSparks[i];
+    s.progress += s.speed;
+
+    const currentX = s.x + (s.targetX - s.x) * s.progress;
+    const currentY = s.y + (s.targetY - s.y) * s.progress;
+
+    ctx.beginPath();
+    ctx.arc(currentX, currentY, s.radius, 0, Math.PI * 2);
+    ctx.fillStyle = s.color;
+    ctx.shadowColor = s.color;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+
+    if (s.progress >= 1.0) {
+      synapticSparks.splice(i, 1);
+    }
+  }
+  ctx.restore();
+}
 
 function renderWorld() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -805,8 +950,27 @@ function renderWorld() {
       if (e.type === "plant") {
         const hue = 125 + Math.min(25, (e.genome.growthRate - 1.0) * 15);
         const energyTone = Math.min(48, 22 + e.energy * 2.8);
+        const pulse = Math.max(0, Math.min(1, e.pulse || 0));
+
         ctx.fillStyle = `hsl(${hue}, 68%, ${energyTone}%)`;
         ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+
+        if (pulse > 0.02) {
+          ctx.save();
+          ctx.fillStyle = `rgba(0, 240, 255, ${pulse * 0.75})`;
+          ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+
+          ctx.strokeStyle = `rgba(255, 255, 255, ${pulse * 0.95})`;
+          ctx.lineWidth = 1.5;
+          ctx.shadowColor = "#00f0ff";
+          ctx.shadowBlur = 8 * pulse;
+          ctx.strokeRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+          ctx.restore();
+        } else if (e.defenseTimer > 0) {
+          ctx.strokeStyle = "rgba(56, 189, 248, 0.4)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px + 1.5, py + 1.5, CELL_SIZE - 3, CELL_SIZE - 3);
+        }
       } else if (e.type === "herbivore") {
         const scentOffset = (e.genome.sensoryRadius - 3) * 12;
         const hue = Math.max(14, Math.min(45, 28 - scentOffset));
@@ -820,6 +984,9 @@ function renderWorld() {
       }
     }
   }
+
+  renderSynapticFilaments();
+  renderSynapticSparks();
 
   for (let i = activeRipples.length - 1; i >= 0; i--) {
     const r = activeRipples[i];
@@ -836,8 +1003,8 @@ function renderWorld() {
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    r.radius += 1.8;
-    r.alpha -= 0.05;
+    r.radius += 2.0;
+    r.alpha -= 0.045;
 
     if (r.alpha <= 0) {
       activeRipples.splice(i, 1);
@@ -900,10 +1067,11 @@ function loop(timestamp) {
 
   if (elapsed > TICK_MS) {
     step();
-    renderWorld();
-    renderSparkline();
     lastTime = timestamp;
   }
+
+  renderWorld();
+  renderSparkline();
 
   requestAnimationFrame(loop);
 }
