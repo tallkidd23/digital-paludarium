@@ -166,20 +166,29 @@ function createPlant(x, y, genome = null) {
     alive: true,
   };
 }
-// ---------- Pulse Layer v0.1 ----------
-// Visual-only signaling: grazing excites nearby plant tissue.
-// Pulse does not alter energy, movement, reproduction, or survival.
-function triggerPlantPulse(x, y, strength = 1) {
-  const source = grid[x]?.[y];
 
-  if (source?.type === "plant" && source.alive) {
-    source.pulse = Math.max(source.pulse || 0, strength);
-  }
+// ---------- Pulse Layer v0.2 (Deep Cascades & Stewardship Shockwaves) ----------
+function triggerPlantPulse(startX, startY, strength = 1.0, depth = 3) {
+  const visited = new Set();
+  const queue = [{ x: startX, y: startY, s: strength, d: depth }];
 
-  for (const [nx, ny] of getNeighbors(x, y)) {
-    const neighbor = grid[nx][ny];
-    if (neighbor?.type === "plant" && neighbor.alive) {
-      neighbor.pulse = Math.max(neighbor.pulse || 0, strength * 0.72);
+  while (queue.length > 0) {
+    const { x, y, s, d } = queue.shift();
+    const key = `${x},${y}`;
+    if (visited.has(key)) continue;
+    visited.add(key);
+
+    const cell = grid[x]?.[y];
+    if (cell && cell.type === "plant" && cell.alive) {
+      cell.pulse = Math.max(cell.pulse || 0, s);
+
+      if (d > 1 && s > 0.15) {
+        for (const [nx, ny] of getNeighbors(x, y)) {
+          if (!visited.has(`${nx},${ny}`) && grid[nx]?.[ny]?.type === "plant") {
+            queue.push({ x: nx, y: ny, s: s * 0.75, d: d - 1 });
+          }
+        }
+      }
     }
   }
 }
@@ -368,11 +377,10 @@ function updateHerbivore(h) {
     for (const [nx, ny] of immediateNeighbors) {
       const cell = grid[nx][ny];
       if (cell && cell.type === "plant" && cell.alive) {
-                const bite = Math.min(cell.energy, g.biteEfficiency);
-        triggerPlantPulse(nx, ny, Math.min(1, 0.35 + bite / g.biteEfficiency * 0.65));
+        const bite = Math.min(cell.energy, g.biteEfficiency);
+        triggerPlantPulse(nx, ny, Math.min(1.0, 0.4 + (bite / g.biteEfficiency) * 0.6), 3);
         cell.energy -= bite;
         h.energy = Math.min(g.maxSatiation, h.energy + bite);
-
         if (cell.energy <= 0.6) {
           cell.alive = false;
           grid[nx][ny] = null;
@@ -470,6 +478,7 @@ function updateCarnivore(c) {
       grid[nx][ny] = null;
       c.energy = Math.min(g.maxSatiation, c.energy + g.huntEfficiency);
       detritusField[nx][ny] = Math.min(10.0, detritusField[nx][ny] + 2.5);
+      triggerPlantPulse(nx, ny, 1.0, 4);
       hunted = true;
       break;
     }
@@ -538,7 +547,7 @@ function updateCarnivore(c) {
   }
 
   if (c.energy <= 0 || c.age > g.maxAge) {
-    c.alive = false;
+    h.alive = false;
     detritusField[c.x][c.y] = Math.min(10.0, detritusField[c.x][c.y] + 4.0);
   }
 }
@@ -736,6 +745,7 @@ function handleCanvasPointer(clientX, clientY) {
       const p = createPlant(ex, ey);
       grid[ex][ey] = p;
       entities.push(p);
+      triggerPlantPulse(ex, ey, 0.9, 3);
       logLine(`🌱 Hand of the Steward: Seeded canopy spore near (${ex}, ${ey}).`, "event");
     } else {
       const old = grid[gridX][gridY];
@@ -783,6 +793,7 @@ function handleCanvasPointer(clientX, clientY) {
         const nx = (gridX + dx + WIDTH) % WIDTH;
         const ny = (gridY + dy + HEIGHT) % HEIGHT;
         soilNutrients[nx][ny] = Math.min(10.0, soilNutrients[nx][ny] + 5.0);
+        triggerPlantPulse(nx, ny, 0.85, 3);
       }
     }
     logLine(`✨ Hand of the Steward: Enriched soil mineral pocket around (${gridX}, ${gridY}).`, "event");
@@ -830,7 +841,7 @@ function renderWorld() {
         continue;
       }
 
-            if (e.type === "plant") {
+      if (e.type === "plant") {
         const hue = 125 + Math.min(25, (e.genome.growthRate - 1.0) * 15);
         const energyTone = Math.min(48, 22 + e.energy * 2.8);
         const pulse = Math.max(0, Math.min(1, e.pulse || 0));
@@ -846,7 +857,6 @@ function renderWorld() {
           ctx.lineWidth = 1;
           ctx.strokeRect(px + 1.5, py + 1.5, CELL_SIZE - 3, CELL_SIZE - 3);
         }
-
       } else if (e.type === "herbivore") {
         const scentOffset = (e.genome.sensoryRadius - 3) * 12;
         const hue = Math.max(14, Math.min(45, 28 - scentOffset));
