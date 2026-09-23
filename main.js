@@ -162,8 +162,33 @@ function createPlant(x, y, genome = null) {
     energy: 5.0,
     age: 0,
     genome: genome ? mutateGenome(genome) : defaultPlantGenome(),
+    pulse: 0,
     alive: true,
   };
+}
+// ---------- Pulse Layer v0.1 ----------
+// Visual-only signaling: grazing excites nearby plant tissue.
+// Pulse does not alter energy, movement, reproduction, or survival.
+function triggerPlantPulse(x, y, strength = 1) {
+  const source = grid[x]?.[y];
+
+  if (source?.type === "plant" && source.alive) {
+    source.pulse = Math.max(source.pulse || 0, strength);
+  }
+
+  for (const [nx, ny] of getNeighbors(x, y)) {
+    const neighbor = grid[nx][ny];
+    if (neighbor?.type === "plant" && neighbor.alive) {
+      neighbor.pulse = Math.max(neighbor.pulse || 0, strength * 0.72);
+    }
+  }
+}
+
+function decayPlantPulses() {
+  for (const entity of entities) {
+    if (entity.type !== "plant") continue;
+    entity.pulse = Math.max(0, (entity.pulse || 0) - 0.075);
+  }
 }
 
 function createHerbivore(x, y, genome = null) {
@@ -343,9 +368,11 @@ function updateHerbivore(h) {
     for (const [nx, ny] of immediateNeighbors) {
       const cell = grid[nx][ny];
       if (cell && cell.type === "plant" && cell.alive) {
-        const bite = Math.min(cell.energy, g.biteEfficiency);
+                const bite = Math.min(cell.energy, g.biteEfficiency);
+        triggerPlantPulse(nx, ny, Math.min(1, 0.35 + bite / g.biteEfficiency * 0.65));
         cell.energy -= bite;
         h.energy = Math.min(g.maxSatiation, h.energy + bite);
+
         if (cell.energy <= 0.6) {
           cell.alive = false;
           grid[nx][ny] = null;
@@ -585,6 +612,7 @@ function step() {
   tick++;
   updateClimateCycle();
   cycleSoilAndDetritus();
+  decayPlantPulses();
   shuffle(entities);
 
   for (const e of entities) {
@@ -802,11 +830,23 @@ function renderWorld() {
         continue;
       }
 
-      if (e.type === "plant") {
+            if (e.type === "plant") {
         const hue = 125 + Math.min(25, (e.genome.growthRate - 1.0) * 15);
         const energyTone = Math.min(48, 22 + e.energy * 2.8);
+        const pulse = Math.max(0, Math.min(1, e.pulse || 0));
+
         ctx.fillStyle = `hsl(${hue}, 68%, ${energyTone}%)`;
         ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+
+        if (pulse > 0.02) {
+          ctx.fillStyle = `rgba(34, 211, 238, ${pulse * 0.82})`;
+          ctx.fillRect(px + 2, py + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+
+          ctx.strokeStyle = `rgba(125, 249, 255, ${pulse * 0.9})`;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px + 1.5, py + 1.5, CELL_SIZE - 3, CELL_SIZE - 3);
+        }
+
       } else if (e.type === "herbivore") {
         const scentOffset = (e.genome.sensoryRadius - 3) * 12;
         const hue = Math.max(14, Math.min(45, 28 - scentOffset));
