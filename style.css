@@ -31,12 +31,6 @@ header {
   gap: 12px;
 }
 
-.header-pills {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 header h1 {
   font-size: 24px;
   font-weight: 700;
@@ -45,36 +39,6 @@ header h1 {
   background: linear-gradient(135deg, #f8fafc 0%, #38bdf8 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-}
-
-.audio-pill {
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid #334155;
-  color: #94a3b8;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-family: "JetBrains Mono", monospace;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.2s ease;
-}
-
-.audio-pill:hover {
-  background: rgba(51, 65, 85, 0.8);
-  border-color: #64748b;
-  color: #f1f5f9;
-}
-
-.audio-pill.active {
-  background: rgba(14, 165, 233, 0.15);
-  border-color: #0ea5e9;
-  color: #38bdf8;
-  box-shadow: 0 0 10px rgba(14, 165, 233, 0.35);
 }
 
 .live-pill {
@@ -209,7 +173,7 @@ main {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .controls-header h2 {
@@ -225,19 +189,55 @@ main {
   color: #38bdf8;
 }
 
+.header-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.audio-toggle-btn {
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", monospace;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.audio-toggle-btn:hover {
+  background: #1e293b;
+  border-color: #64748b;
+  color: #f1f5f9;
+}
+
+.audio-toggle-btn.active {
+  background: rgba(14, 165, 233, 0.18);
+  border-color: #0ea5e9;
+  color: #38bdf8;
+  box-shadow: 0 0 10px rgba(14, 165, 233, 0.35);
+}
+
 .scope-toggle-btn {
   background: #1e1b4b;
   border: 1px solid #6366f1;
   color: #c7d2fe;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease-in-out;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 
 .scope-toggle-btn:hover, .scope-toggle-btn.active {
