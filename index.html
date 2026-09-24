@@ -13,9 +13,14 @@
     <header>
       <div class="title-row">
         <h1>Synapse Reef</h1>
-        <span class="live-pill"><span class="pulse-dot"></span> LIVE ECOSYSTEM</span>
+        <div class="header-pills">
+          <button class="audio-pill" id="audioToggleBtn" title="Toggle Generative Bio-Acoustics">
+            <span id="audioIcon">🔇</span> <span id="audioLabel">AUDIO OFF</span>
+          </button>
+          <span class="live-pill"><span class="pulse-dot"></span> LIVE ECOSYSTEM</span>
+        </div>
       </div>
-      <p class="subtitle">Self-organizing neural-coral automata, trophic balance, and interactive stewardship.</p>
+      <p class="subtitle">Self-organizing neural-coral automata, long-term substrate memory, generative bio-acoustics, and real-time telemetry.</p>
     </header>
 
     <main>
@@ -76,7 +81,12 @@
             <div class="metric-bar-bg"><div class="metric-bar-fill green" id="barStability" style="width: 50%"></div></div>
           </div>
           <div class="metric-card">
-            <span class="metric-label">Substrate Biomass / Detritus</span>
+            <span class="metric-label">Substrate Memory Pathways</span>
+            <span class="metric-value" id="scopeMemory">0 Nodes</span>
+            <div class="metric-bar-bg"><div class="metric-bar-fill purple" id="barMemory" style="width: 0%"></div></div>
+          </div>
+          <div class="metric-card full-span">
+            <span class="metric-label">Substrate Biomass / Detritus Ledger</span>
             <span class="metric-value" id="scopeBiomass">0 / 0</span>
             <div class="metric-bar-bg"><div class="metric-bar-fill cyan" id="barBiomass" style="width: 0%"></div></div>
           </div>
@@ -108,7 +118,7 @@
     </main>
 
     <footer>
-      <p>Synapse Reef v0.4 &middot; Neural marine cellular automaton &middot; Built with vanilla HTML/CSS/JS</p>
+      <p>Synapse Reef v0.6 &middot; Neural marine cellular automaton &middot; Built with vanilla HTML/CSS/JS & Web Audio API</p>
     </footer>
 
     <script src="main.js"></script>
