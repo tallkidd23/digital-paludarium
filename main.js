@@ -1,6 +1,5 @@
 // =====================================================================
-// SYNAPSE REEF v0.3 — Neural Synaptic Filament & Action-Potential Engine
-// Turing Reaction-Diffusion + Lotka-Volterra + Ramón y Cajal Neural Net
+// SYNAPSE REEF v0.4 — Real-Time Math Scope & Phase-Space Attractor Engine
 // =====================================================================
 
 // ---------- Configuration ----------
@@ -40,6 +39,13 @@ let climateTicksRemaining = 600;
 const MAX_GRAPH_POINTS = 160;
 let timeSeriesHistory = [];
 let epochHistory = [];
+
+// Math Scope state
+let mathScopeActive = false;
+const MAX_PHASE_POINTS = 140;
+let phaseOrbitHistory = []; // { p, h, c }
+let lastPCount = 0;
+let lastHCount = 0;
 
 // Interactive stewardship tool state ('plant' | 'grazer' | 'predator' | 'nutrient')
 let activeTool = "plant";
@@ -264,6 +270,7 @@ function initWorld() {
   detritusField = createSoil();
   entities = [];
   timeSeriesHistory = [];
+  phaseOrbitHistory = [];
   epochHistory = [];
   activeRipples = [];
   synapticSparks = [];
@@ -307,7 +314,7 @@ function initWorld() {
   currentClimateIndex = 0;
   climateTicksRemaining = 600;
   clearLog();
-  logLine("🌱 Epoch 0 — Synapse Reef v0.3 active: Neural axons, bioluminescent action potentials, & defensive calcification.", "epoch");
+  logLine("🌱 Epoch 0 — Synapse Reef v0.4 active: Real-Time Mathematical Scope & Attractor Engine.", "epoch");
   updateEpochBadge();
   updateClimateHUD();
 }
@@ -644,6 +651,59 @@ function cleanupDead() {
   entities = alive;
 }
 
+function updateMathTelemetry(pCount, hCount, cCount) {
+  const dp = ((pCount - lastPCount) / 4).toFixed(2);
+  const dh = ((hCount - lastHCount) / 4).toFixed(2);
+  lastPCount = pCount;
+  lastHCount = hCount;
+
+  let totalPulse = 0;
+  let plantCount = 0;
+  let totalSoil = 0;
+
+  for (let x = 0; x < WIDTH; x++) {
+    for (let y = 0; y < HEIGHT; y++) {
+      totalSoil += soilNutrients[x][y];
+      const e = grid[x][y];
+      if (e && e.type === "plant") {
+        totalPulse += (e.pulse || 0);
+        plantCount++;
+      }
+    }
+  }
+
+  const meanPhi = plantCount > 0 ? (totalPulse / plantCount).toFixed(3) : "0.000";
+
+  const dpEl = document.getElementById("mathDP");
+  const dhEl = document.getElementById("mathDH");
+  const phiEl = document.getElementById("mathMeanPhi");
+  const soilEl = document.getElementById("mathSoilMass");
+
+  if (dpEl) dpEl.textContent = `${dp >= 0 ? "+" : ""}${dp} / tick`;
+  if (dhEl) dhEl.textContent = `${dh >= 0 ? "+" : ""}${dh} / tick`;
+  if (phiEl) phiEl.textContent = `${meanPhi} V`;
+  if (soilEl) soilEl.textContent = `${Math.round(totalSoil)}`;
+
+  phaseOrbitHistory.push({ p: pCount, h: hCount, c: cCount });
+  if (phaseOrbitHistory.length > MAX_PHASE_POINTS) {
+    phaseOrbitHistory.shift();
+  }
+
+  const attractorEl = document.getElementById("orbitAttractorStatus");
+  if (attractorEl && phaseOrbitHistory.length > 20) {
+    const recent = phaseOrbitHistory.slice(-20);
+    const varP = Math.max(...recent.map(r => r.p)) - Math.min(...recent.map(r => r.p));
+    const varH = Math.max(...recent.map(r => r.h)) - Math.min(...recent.map(r => r.h));
+    if (varP > 200 || varH > 120) {
+      attractorEl.textContent = "Chaotic Trajectory";
+      attractorEl.style.color = "#f43f5e";
+    } else {
+      attractorEl.textContent = "Stable Limit Cycle";
+      attractorEl.style.color = "#38bdf8";
+    }
+  }
+}
+
 function recordTimeSeries() {
   const pCount = entities.filter(e => e.type === "plant").length;
   const hCount = entities.filter(e => e.type === "herbivore").length;
@@ -653,6 +713,8 @@ function recordTimeSeries() {
   if (timeSeriesHistory.length > MAX_GRAPH_POINTS) {
     timeSeriesHistory.shift();
   }
+
+  updateMathTelemetry(pCount, hCount, cCount);
 }
 
 function step() {
@@ -743,13 +805,39 @@ canvas.height = HEIGHT * CELL_SIZE;
 const graphCanvas = document.getElementById("graphCanvas");
 const gCtx = graphCanvas ? graphCanvas.getContext("2d") : null;
 
+const phaseCanvas = document.getElementById("phaseCanvas");
+const pCtx = phaseCanvas ? phaseCanvas.getContext("2d") : null;
+
 function resizeGraph() {
   if (graphCanvas) {
     graphCanvas.width = graphCanvas.parentElement.clientWidth - 32;
-    graphCanvas.height = 90;
+    graphCanvas.height = 70;
+  }
+  if (phaseCanvas) {
+    phaseCanvas.width = phaseCanvas.parentElement.clientWidth - 20;
+    phaseCanvas.height = 120;
   }
 }
 window.addEventListener("resize", resizeGraph);
+
+// Math Scope Toggle
+const mathToggleBtn = document.getElementById("mathToggleBtn");
+const mathScopePanel = document.getElementById("mathScopePanel");
+
+if (mathToggleBtn && mathScopePanel) {
+  mathToggleBtn.addEventListener("click", () => {
+    mathScopeActive = !mathScopeActive;
+    if (mathScopeActive) {
+      mathToggleBtn.classList.add("active");
+      mathScopePanel.classList.add("open");
+      resizeGraph();
+      logLine("📐 Math Scope Engaged: Vector fields and Phase-Space attractor active.", "epoch");
+    } else {
+      mathToggleBtn.classList.remove("active");
+      mathScopePanel.classList.remove("open");
+    }
+  });
+}
 
 function handleCanvasPointer(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
@@ -922,6 +1010,41 @@ function renderSynapticSparks() {
   ctx.restore();
 }
 
+// Math Scope Visual Overlay: Vector fields & coordinate matrices
+function renderMathScopeOverlay() {
+  if (!mathScopeActive) return;
+
+  ctx.save();
+  ctx.font = "7px monospace";
+  ctx.fillStyle = "rgba(167, 139, 250, 0.4)";
+  ctx.strokeStyle = "rgba(167, 139, 250, 0.25)";
+  ctx.lineWidth = 0.5;
+
+  // Grid Coordinate Crosshairs & Vector Arrows
+  for (let x = 0; x < WIDTH; x += 4) {
+    for (let y = 0; y < HEIGHT; y += 4) {
+      const px = x * CELL_SIZE;
+      const py = y * CELL_SIZE;
+
+      ctx.beginPath();
+      ctx.moveTo(px - 2, py); ctx.lineTo(px + 2, py);
+      ctx.moveTo(px, py - 2); ctx.lineTo(px, py + 2);
+      ctx.stroke();
+
+      const e = grid[x][y];
+      if (e && e.type === "plant" && e.pulse > 0.1) {
+        // Render Gradient Vector ∇Φ
+        ctx.strokeStyle = "rgba(0, 240, 255, 0.7)";
+        ctx.beginPath();
+        ctx.moveTo(px + CELL_SIZE / 2, py + CELL_SIZE / 2);
+        ctx.lineTo(px + CELL_SIZE / 2, py + CELL_SIZE / 2 - e.pulse * 10);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+}
+
 function renderWorld() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -987,6 +1110,7 @@ function renderWorld() {
 
   renderSynapticFilaments();
   renderSynapticSparks();
+  renderMathScopeOverlay();
 
   for (let i = activeRipples.length - 1; i >= 0; i--) {
     const r = activeRipples[i];
@@ -1059,6 +1183,69 @@ function renderSparkline() {
   drawSeries("c", "#f43f5e", 2.5);
 }
 
+// Render 2D Lotka-Volterra Phase-Space Orbit Attractor
+function renderPhaseSpaceOrbit() {
+  if (!pCtx || !mathScopeActive || phaseOrbitHistory.length < 2) return;
+
+  const w = phaseCanvas.width;
+  const h = phaseCanvas.height;
+
+  pCtx.clearRect(0, 0, w, h);
+
+  // Background coordinate grid
+  pCtx.strokeStyle = "#10192e";
+  pCtx.lineWidth = 1;
+  pCtx.beginPath();
+  pCtx.moveTo(w / 2, 0); pCtx.lineTo(w / 2, h);
+  pCtx.moveTo(0, h / 2); pCtx.lineTo(w, h / 2);
+  pCtx.stroke();
+
+  // Axis Labels
+  pCtx.fillStyle = "#64748b";
+  pCtx.font = "8px monospace";
+  pCtx.fillText("Canopy P(t) ──►", w - 85, h - 6);
+  pCtx.fillText("▲ Grazer H(t)", 6, 12);
+
+  let maxP = 600;
+  let maxH = 250;
+
+  for (const pt of phaseOrbitHistory) {
+    if (pt.p > maxP) maxP = pt.p;
+    if (pt.h > maxH) maxH = pt.h;
+  }
+
+  pCtx.lineWidth = 1.8;
+  for (let i = 1; i < phaseOrbitHistory.length; i++) {
+    const pt1 = phaseOrbitHistory[i - 1];
+    const pt2 = phaseOrbitHistory[i];
+
+    const x1 = (pt1.p / maxP) * (w - 20) + 10;
+    const y1 = h - (pt1.h / maxH) * (h - 20) - 10;
+    const x2 = (pt2.p / maxP) * (w - 20) + 10;
+    const y2 = h - (pt2.h / maxH) * (h - 20) - 10;
+
+    const alpha = (i / phaseOrbitHistory.length);
+    pCtx.strokeStyle = `rgba(167, 139, 250, ${alpha * 0.9})`;
+    pCtx.beginPath();
+    pCtx.moveTo(x1, y1);
+    pCtx.lineTo(x2, y2);
+    pCtx.stroke();
+  }
+
+  // Current head state point
+  const head = phaseOrbitHistory[phaseOrbitHistory.length - 1];
+  const headX = (head.p / maxP) * (w - 20) + 10;
+  const headY = h - (head.h / maxH) * (h - 20) - 10;
+
+  pCtx.beginPath();
+  pCtx.arc(headX, headY, 3.5, 0, Math.PI * 2);
+  pCtx.fillStyle = "#38bdf8";
+  pCtx.shadowColor = "#38bdf8";
+  pCtx.shadowBlur = 8;
+  pCtx.fill();
+  pCtx.shadowBlur = 0;
+}
+
 // ---------- Engine Loop ----------
 let lastTime = 0;
 function loop(timestamp) {
@@ -1072,6 +1259,7 @@ function loop(timestamp) {
 
   renderWorld();
   renderSparkline();
+  renderPhaseSpaceOrbit();
 
   requestAnimationFrame(loop);
 }
