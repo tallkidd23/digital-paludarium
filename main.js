@@ -1,1 +1,1 @@
-// Original Synapse Reef v0.65 simulation restored from commit 00b45344946e4af01e11e24a810729037d0e4737. Audio-safety.js remains loaded before this file; live routing will be added separately without replacing the application.
+SEE_ATTACHED_MAIN_JS
