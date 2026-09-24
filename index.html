@@ -1,19 +1,21 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Synapse Reef | An Emergent Life Simulation</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="container">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Synapse Reef — Neural Marine Ecosystem Sim</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
     <header>
-      <div class="header-main">
+      <div class="title-row">
         <h1>Synapse Reef</h1>
         <span class="live-pill"><span class="pulse-dot"></span> LIVE ECOSYSTEM</span>
       </div>
-      <p class="subtitle">Self-organizing brain-coral geometry, closed-loop soil memory, and environmental climate shifts.</p>
+      <p class="subtitle">Self-organizing neural-coral automata, trophic balance, and interactive stewardship.</p>
     </header>
 
     <main>
@@ -31,53 +33,84 @@
           </div>
         </div>
         <div class="climate-item stats-item">
-          <span class="climate-meta-stat">Sunlight: <b id="sunStat">100%</b></span>
+          <span class="climate-meta-stat">Sunlight: <b id="sunStat">105%</b></span>
           <span class="climate-meta-stat">Soil Moisture: <b id="soilStat">Optimal</b></span>
         </div>
       </div>
 
-      <!-- God-Hand Interactive Stewardship Controls -->
+      <!-- Stewardship Controls Panel -->
       <div class="controls-panel">
         <div class="controls-header">
-          <h2>Reef Stewardship (Interact & Seed)</h2>
-          <span class="active-tool-label">Active: <b id="activeToolName">Drop Spores</b></span>
+          <h2>Reef Stewardship (Active: <span id="activeToolName">Drop Spores</span>)</h2>
+          <button class="scope-toggle-btn" id="mathScopeBtn">📐 Math Scope</button>
         </div>
         <div class="tools-grid">
           <button class="tool-btn active" data-tool="plant">🌱 Drop Spores</button>
           <button class="tool-btn" data-tool="grazer">🟠 Introduce Grazers</button>
           <button class="tool-btn" data-tool="predator">🔴 Summon Apex</button>
+          <button class="tool-btn" data-tool="benthic">🟣 Benthic Crab</button>
           <button class="tool-btn" data-tool="nutrient">✨ Enrich Substrate</button>
+        </div>
+      </div>
+
+      <!-- Math Scope Analytics Panel -->
+      <div class="math-scope-panel" id="mathScopePanel">
+        <div class="scope-header">
+          <h3>📐 Math Scope Diagnostics</h3>
+          <span class="scope-badge">LIVE METRICS</span>
+        </div>
+        <div class="scope-metrics-grid">
+          <div class="metric-card">
+            <span class="metric-label">Shannon Entropy (Diversity)</span>
+            <span class="metric-value" id="scopeEntropy">0.000 bits</span>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="barEntropy" style="width: 0%"></div></div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Synaptic Activity (Firing Rate)</span>
+            <span class="metric-value" id="scopeActivity">0.0%</span>
+            <div class="metric-bar-bg"><div class="metric-bar-fill pulse" id="barActivity" style="width: 0%"></div></div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Trophic Stability Index</span>
+            <span class="metric-value" id="scopeStability">Equilibrium</span>
+            <div class="metric-bar-bg"><div class="metric-bar-fill green" id="barStability" style="width: 50%"></div></div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Substrate Biomass / Detritus</span>
+            <span class="metric-value" id="scopeBiomass">0 / 0</span>
+            <div class="metric-bar-bg"><div class="metric-bar-fill cyan" id="barBiomass" style="width: 0%"></div></div>
+          </div>
         </div>
       </div>
 
       <!-- Live Trophic Wave Dynamics (Sparkline Graph) -->
       <div class="graph-panel">
         <div class="graph-header">
-          <h2>Trophic Wave Dynamics (Oscillation Curves)</h2>
+          <h2>Trophic Wave Dynamics</h2>
           <div class="legend">
-            <span class="legend-item"><span class="legend-dot plant-dot"></span> Canopy</span>
-            <span class="legend-item"><span class="legend-dot grazer-dot"></span> Grazers</span>
-            <span class="legend-item"><span class="legend-dot predator-dot"></span> Predators</span>
+            <span class="legend-item"><span class="legend-dot dot-plant"></span> Flora Spores</span>
+            <span class="legend-item"><span class="legend-dot dot-herb"></span> Grazers</span>
+            <span class="legend-item"><span class="legend-dot dot-carn"></span> Apex</span>
+            <span class="legend-item"><span class="legend-dot dot-benthic"></span> Benthic Crabs</span>
           </div>
         </div>
         <canvas id="graphCanvas"></canvas>
       </div>
 
-      <!-- Autonomous Chronicle Engine -->
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Ecosystem Chronicle</h2>
-          <span class="epoch-counter" id="epochBadge">Epoch 0</span>
+      <!-- Live Chronicle Log -->
+      <div class="chronicle-panel">
+        <div class="chronicle-header">
+          <h2>Reef Chronicle</h2>
+          <span class="epoch-badge" id="epochBadge">Epoch 0</span>
         </div>
-        <div id="log" class="log"></div>
+        <div class="log-terminal" id="logTerminal"></div>
       </div>
     </main>
 
     <footer>
-      <p class="meta-tag">An open-source artifact exploring emergent systems & biological computation.</p>
+      <p>Synapse Reef v0.4 &middot; Neural marine cellular automaton &middot; Built with vanilla HTML/CSS/JS</p>
     </footer>
-  </div>
 
-  <script src="main.js"></script>
-</body>
+    <script src="main.js"></script>
+  </body>
 </html>
