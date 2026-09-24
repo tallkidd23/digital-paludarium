@@ -1,7 +1,7 @@
 // =====================================================================
-// SYNAPSE REEF v0.6 — Neural Marine Automata & Generative Bio-Computer
+// SYNAPSE REEF v0.65 — Neural Marine Automata & Generative Bio-Computer
 // Turing Reaction-Diffusion + Lotka-Volterra + Ramón y Cajal Neural Net
-// Long-Term Substrate Memory + Real-Time Web Audio Generative Synthesis
+// Long-Term Substrate Memory + Robust Web Audio Generative Synthesis
 // =====================================================================
 
 // ---------- Configuration ----------
@@ -65,16 +65,16 @@ function initAudioEngine() {
     audioCtx = new AudioContextClass();
 
     masterGain = audioCtx.createGain();
-    masterGain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    masterGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
 
     // Warm Ambient Low-Pass Filter
     droneFilter = audioCtx.createBiquadFilter();
     droneFilter.type = "lowpass";
-    droneFilter.frequency.setValueAtTime(320, audioCtx.currentTime);
-    droneFilter.Q.setValueAtTime(2.5, audioCtx.currentTime);
+    droneFilter.frequency.setValueAtTime(360, audioCtx.currentTime);
+    droneFilter.Q.setValueAtTime(2.0, audioCtx.currentTime);
 
     droneGain = audioCtx.createGain();
-    droneGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    droneGain.gain.setValueAtTime(0.18, audioCtx.currentTime);
 
     // Dual Detuned Drone Oscillators for Sub-Benthic Resonance
     droneOsc1 = audioCtx.createOscillator();
@@ -109,11 +109,11 @@ function updateAudioClimate() {
   droneOsc2.frequency.exponentialRampToValueAtTime(climate.rootFreq * 1.503, now + 3.0);
 
   if (climate.name === "Arid Eclipse") {
-    droneFilter.frequency.exponentialRampToValueAtTime(220, now + 2.5);
+    droneFilter.frequency.exponentialRampToValueAtTime(240, now + 2.5);
   } else if (climate.name === "Bioluminescent Bloom") {
-    droneFilter.frequency.exponentialRampToValueAtTime(560, now + 2.5);
+    droneFilter.frequency.exponentialRampToValueAtTime(600, now + 2.5);
   } else {
-    droneFilter.frequency.exponentialRampToValueAtTime(340, now + 2.5);
+    droneFilter.frequency.exponentialRampToValueAtTime(360, now + 2.5);
   }
 }
 
@@ -131,14 +131,14 @@ function playSynapticChime(pitchMultiplier = 1.0) {
     osc.type = "sine";
     osc.frequency.setValueAtTime(freq, now);
 
-    gain.gain.setValueAtTime(0.06, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
 
     osc.connect(gain);
     gain.connect(masterGain);
 
     osc.start(now);
-    osc.stop(now + 0.6);
+    osc.stop(now + 0.65);
   } catch (e) {}
 }
 
@@ -150,17 +150,17 @@ function playBenthicPercussion() {
     const now = audioCtx.currentTime;
 
     osc.type = "triangle";
-    osc.frequency.setValueAtTime(95, now);
-    osc.frequency.exponentialRampToValueAtTime(38, now + 0.08);
+    osc.frequency.setValueAtTime(120, now);
+    osc.frequency.exponentialRampToValueAtTime(45, now + 0.09);
 
-    gain.gain.setValueAtTime(0.08, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+    gain.gain.setValueAtTime(0.14, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
 
     osc.connect(gain);
     gain.connect(masterGain);
 
     osc.start(now);
-    osc.stop(now + 0.1);
+    osc.stop(now + 0.11);
   } catch (e) {}
 }
 
@@ -323,7 +323,7 @@ function spawnSynapticSpark(fromX, fromY, toX, toY, color = "#00f0ff") {
   substrateMemory[fromX][fromY] = Math.min(10.0, substrateMemory[fromX][fromY] + 0.4);
   substrateMemory[toX][toY] = Math.min(10.0, substrateMemory[toX][toY] + 0.4);
 
-  if (Math.random() < 0.15) {
+  if (Math.random() < 0.25) {
     playSynapticChime(1.0);
   }
 }
@@ -460,7 +460,7 @@ function initWorld() {
   currentClimateIndex = 0;
   climateTicksRemaining = 600;
   clearLog();
-  logLine("🌱 Epoch 0 — Synapse Reef v0.6 active: Generative Web Audio, Substrate Bio-Memory & Telemetry.", "epoch");
+  logLine("🌱 Epoch 0 — Synapse Reef v0.65 active: Generative Web Audio, Substrate Bio-Memory & Telemetry.", "epoch");
   updateEpochBadge();
   updateClimateHUD();
 }
@@ -1159,25 +1159,41 @@ document.querySelectorAll(".tool-btn").forEach((btn) => {
   });
 });
 
-// Audio Toggle Button
-const audioToggleBtn = document.getElementById("audioToggleBtn");
-const audioIcon = document.getElementById("audioIcon");
-const audioLabel = document.getElementById("audioLabel");
-
-if (audioToggleBtn) {
-  audioToggleBtn.addEventListener("click", () => {
-    initAudioEngine();
-    if (audioCtx && audioCtx.state === "suspended") {
+// Audio Toggle Button with iOS Direct Audio unlock
+function toggleAudio() {
+  initAudioEngine();
+  if (audioCtx) {
+    if (audioCtx.state === "suspended") {
       audioCtx.resume();
     }
-    audioEnabled = !audioEnabled;
-    audioToggleBtn.classList.toggle("active", audioEnabled);
-    if (audioIcon) audioIcon.textContent = audioEnabled ? "🔊" : "🔇";
-    if (audioLabel) audioLabel.textContent = audioEnabled ? "AUDIO ON" : "AUDIO OFF";
+  }
+  audioEnabled = !audioEnabled;
+  const audioToggleBtn = document.getElementById("audioToggleBtn");
+  const audioIcon = document.getElementById("audioIcon");
+  const audioLabel = document.getElementById("audioLabel");
 
-    if (masterGain) {
-      masterGain.gain.setValueAtTime(audioEnabled ? 0.35 : 0.0, audioCtx.currentTime);
-    }
+  if (audioToggleBtn) audioToggleBtn.classList.toggle("active", audioEnabled);
+  if (audioIcon) audioIcon.textContent = audioEnabled ? "🔊" : "🔇";
+  if (audioLabel) audioLabel.textContent = audioEnabled ? "AUDIO ON" : "AUDIO OFF";
+
+  if (masterGain && audioCtx) {
+    masterGain.gain.setValueAtTime(audioEnabled ? 0.5 : 0.0, audioCtx.currentTime);
+  }
+
+  // Play subtle confirmation chime on enable
+  if (audioEnabled) {
+    playSynapticChime(1.0);
+  }
+}
+
+const audioToggleBtn = document.getElementById("audioToggleBtn");
+if (audioToggleBtn) {
+  audioToggleBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    toggleAudio();
+  });
+  audioToggleBtn.addEventListener("click", (e) => {
+    e.preventDefault();
   });
 }
 
