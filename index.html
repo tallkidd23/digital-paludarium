@@ -1,1 +1,123 @@
-SEE_ATTACHED_INDEX_HTML
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Synapse Reef v0.6 — Neural Marine Ecosystem Sim</title>
+    <link rel="stylesheet" href="style.css?v=0.65" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <header>
+      <div class="title-row">
+        <h1>SYNAPSE REEF</h1>
+        <div class="header-pills">
+          <span class="live-pill"><span class="pulse-dot"></span> LIVE ECOSYSTEM</span>
+        </div>
+      </div>
+      <p class="subtitle">Self-organizing neural-coral automata, long-term substrate memory, generative bio-acoustics, and real-time telemetry.</p>
+    </header>
+
+    <main>
+      <div class="canvas-wrapper">
+        <canvas id="sim"></canvas>
+      </div>
+
+      <div class="climate-bar">
+        <div class="climate-item">
+          <span class="climate-icon" id="climateIcon">☀️</span>
+          <div class="climate-meta">
+            <span class="climate-label">Environmental Regime</span>
+            <b class="climate-val" id="climateName">Verdant Solstice</b>
+          </div>
+        </div>
+        <div class="climate-item stats-item">
+          <span class="climate-meta-stat">Sunlight: <b id="sunStat">105%</b></span>
+          <span class="climate-meta-stat">Soil Moisture: <b id="soilStat">Optimal</b></span>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="controls-header">
+          <h2>Reef Stewardship (Active: <span id="activeToolName">Drop Spores</span>)</h2>
+          <div class="header-action-buttons">
+            <button class="audio-toggle-btn" id="audioToggleBtn" title="Toggle Generative Bio-Acoustics">
+              <span id="audioIcon">🔇</span> <span id="audioLabel">AUDIO OFF</span>
+            </button>
+            <button class="scope-toggle-btn" id="mathScopeBtn">📐 Math Scope</button>
+          </div>
+        </div>
+        <div class="tools-grid">
+          <button class="tool-btn active" data-tool="plant">🌱 Drop Spores</button>
+          <button class="tool-btn" data-tool="grazer">🟠 Introduce Grazers</button>
+          <button class="tool-btn" data-tool="predator">🔴 Summon Apex</button>
+          <button class="tool-btn" data-tool="benthic">🟣 Benthic Crab</button>
+          <button class="tool-btn" data-tool="nutrient">✨ Enrich Substrate</button>
+        </div>
+      </div>
+
+      <div class="math-scope-panel" id="mathScopePanel">
+        <div class="scope-header">
+          <h3>📐 Math Scope Diagnostics</h3>
+          <span class="scope-badge">LIVE METRICS</span>
+        </div>
+        <div class="scope-metrics-grid">
+          <div class="metric-card">
+            <span class="metric-label">Shannon Entropy (Diversity)</span>
+            <span class="metric-value" id="scopeEntropy">0.000 bits</span>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="barEntropy" style="width: 0%"></div></div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Synaptic Activity (Firing Rate)</span>
+            <span class="metric-value" id="scopeActivity">0.0%</span>
+            <div class="metric-bar-bg"><div class="metric-bar-fill pulse" id="barActivity" style="width: 0%"></div></div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Trophic Stability Index</span>
+            <span class="metric-value" id="scopeStability">Equilibrium</span>
+            <div class="metric-bar-bg"><div class="metric-bar-fill green" id="barStability" style="width: 50%"></div></div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Substrate Memory Pathways</span>
+            <span class="metric-value" id="scopeMemory">0 Nodes</span>
+            <div class="metric-bar-bg"><div class="metric-bar-fill purple" id="barMemory" style="width: 0%"></div></div>
+          </div>
+          <div class="metric-card full-span">
+            <span class="metric-label">Substrate Biomass / Detritus Ledger</span>
+            <span class="metric-value" id="scopeBiomass">0 / 0</span>
+            <div class="metric-bar-bg"><div class="metric-bar-fill cyan" id="barBiomass" style="width: 0%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="graph-panel">
+        <div class="graph-header">
+          <h2>Trophic Wave Dynamics</h2>
+          <div class="legend">
+            <span class="legend-item"><span class="legend-dot dot-plant"></span> Flora Spores</span>
+            <span class="legend-item"><span class="legend-dot dot-herb"></span> Grazers</span>
+            <span class="legend-item"><span class="legend-dot dot-carn"></span> Apex</span>
+            <span class="legend-item"><span class="legend-dot dot-benthic"></span> Benthic Crabs</span>
+          </div>
+        </div>
+        <canvas id="graphCanvas"></canvas>
+      </div>
+
+      <div class="chronicle-panel">
+        <div class="chronicle-header">
+          <h2>Reef Chronicle</h2>
+          <span class="epoch-badge" id="epochBadge">Epoch 0</span>
+        </div>
+        <div class="log-terminal" id="logTerminal"></div>
+      </div>
+    </main>
+
+    <footer>
+      <p>Synapse Reef v0.6 &middot; Neural marine cellular automaton &middot; Built with vanilla HTML/CSS/JS & Web Audio API</p>
+    </footer>
+
+    <script src="main.js?v=0.65"></script>
+  </body>
+</html>
