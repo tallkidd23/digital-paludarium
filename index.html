@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Synapse Reef — Living Neural Paludarium</title>
+  <title>Synapse Reef v0.5 — Deep Ecology & Neural Plasticity</title>
   <style>
     * {
       box-sizing: border-box;
@@ -13,7 +13,7 @@
       -webkit-user-select: none;
     }
     body {
-      background: #050814;
+      background: #030611;
       color: #e2e8f0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       min-height: 100vh;
@@ -25,7 +25,7 @@
     }
     .container {
       width: 100%;
-      max-width: 740px;
+      max-width: 760px;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -40,7 +40,7 @@
       font-size: 1.25rem;
       font-weight: 700;
       letter-spacing: 0.5px;
-      background: linear-gradient(135deg, #38bdf8, #22c55e, #f43f5e);
+      background: linear-gradient(135deg, #38bdf8, #22c55e, #c084fc, #f43f5e);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -56,11 +56,11 @@
     .canvas-container {
       position: relative;
       width: 100%;
-      background: #030712;
+      background: #02040a;
       border-radius: 12px;
       overflow: hidden;
       border: 1px solid #1e293b;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 20px -5px rgba(56, 189, 248, 0.15);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 0 20px -5px rgba(56, 189, 248, 0.15);
       aspect-ratio: 50 / 35;
       touch-action: none;
     }
@@ -71,7 +71,7 @@
       cursor: crosshair;
     }
     .hud-card {
-      background: #090e1a;
+      background: #080d1a;
       border: 1px solid #1e293b;
       border-radius: 12px;
       padding: 12px 14px;
@@ -109,31 +109,31 @@
     }
     .tools-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
     }
-    @media (min-width: 480px) {
+    @media (min-width: 520px) {
       .tools-grid {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
       }
     }
     .tool-btn {
-      background: #10172a;
+      background: #0f172a;
       border: 1px solid #1e293b;
       color: #94a3b8;
       border-radius: 8px;
       padding: 8px 6px;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       font-weight: 600;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 5px;
       cursor: pointer;
       transition: all 0.15s ease;
     }
     .tool-btn:hover {
-      background: #172138;
+      background: #1e293b;
       color: #f1f5f9;
     }
     .tool-btn.active {
@@ -230,7 +230,7 @@
       border-radius: 6px;
     }
     .graph-card {
-      background: #090e1a;
+      background: #080d1a;
       border: 1px solid #1e293b;
       border-radius: 12px;
       padding: 12px 14px;
@@ -248,13 +248,14 @@
     }
     .graph-legend {
       display: flex;
-      gap: 12px;
+      gap: 10px;
+      flex-wrap: wrap;
     }
     .legend-item {
       display: flex;
       align-items: center;
       gap: 4px;
-      font-size: 0.72rem;
+      font-size: 0.7rem;
     }
     .legend-dot {
       width: 8px;
@@ -267,7 +268,7 @@
       display: block;
     }
     .log-card {
-      background: #090e1a;
+      background: #080d1a;
       border: 1px solid #1e293b;
       border-radius: 12px;
       padding: 10px 14px;
@@ -327,6 +328,7 @@
         <button class="tool-btn active" data-tool="plant">🌱 Drop Spores</button>
         <button class="tool-btn" data-tool="grazer">🟠 Introduce Grazers</button>
         <button class="tool-btn" data-tool="predator">🔴 Summon Apex</button>
+        <button class="tool-btn" data-tool="detritivore">🟣 Benthic Crab</button>
         <button class="tool-btn" data-tool="nutrient">✨ Enrich Substrate</button>
       </div>
     </div>
@@ -370,11 +372,12 @@
 
     <div class="graph-card">
       <div class="graph-header">
-        <span>TROPHIC WEB POPULATION DYNAMICS</span>
+        <span>FOUR-TIER TROPHIC WEB DYNAMICS</span>
         <div class="graph-legend">
           <div class="legend-item"><div class="legend-dot" style="background: #22c55e;"></div><span>Canopy</span></div>
           <div class="legend-item"><div class="legend-dot" style="background: #f97316;"></div><span>Grazers</span></div>
-          <div class="legend-item"><div class="legend-dot" style="background: #f43f5e;"></div><span>Predators (x2.5)</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f43f5e;"></div><span>Apex (x2.5)</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background: #c084fc;"></div><span>Benthic Crabs</span></div>
         </div>
       </div>
       <canvas id="graphCanvas"></canvas>
