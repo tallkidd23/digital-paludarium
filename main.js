@@ -1,6 +1,7 @@
 // =====================================================================
-// SYNAPSE REEF v0.4 — Neural Marine Automata & Trophic Bio-Computer
+// SYNAPSE REEF v0.6 — Neural Marine Automata & Generative Bio-Computer
 // Turing Reaction-Diffusion + Lotka-Volterra + Ramón y Cajal Neural Net
+// Long-Term Substrate Memory + Real-Time Web Audio Generative Synthesis
 // =====================================================================
 
 // ---------- Configuration ----------
@@ -20,6 +21,7 @@ const INITIAL_BENTHIC_COUNT = 4;
 let grid = createGrid();
 let soilNutrients = createField(2.0);
 let detritusField = createField(0.0);
+let substrateMemory = createField(0.0); // Long-term reinforced mycelial bio-memory pathways
 let entities = [];
 let tick = 0;
 let epoch = 0;
@@ -29,10 +31,10 @@ let synapticSparks = [];
 
 // Environmental Climate & Seasonal Cycle System
 const CLIMATES = [
-  { name: "Verdant Solstice", icon: "☀️", sunFactor: 1.05, moistureBonus: 0.005, desc: "Optimal sunlight and rapid root mineral synthesis." },
-  { name: "Nutrient Monsoon", icon: "🌧️", sunFactor: 0.85, moistureBonus: 0.015, desc: "High rainfall accelerating detritus breakdown into fertile loam." },
-  { name: "Arid Eclipse", icon: "🌘", sunFactor: 0.65, moistureBonus: 0.001, desc: "Dimmed canopy light; organisms rely on stored metabolism." },
-  { name: "Bioluminescent Bloom", icon: "✨", sunFactor: 1.25, moistureBonus: 0.008, desc: "High energetic excitation stimulating spore proliferation." }
+  { name: "Verdant Solstice", icon: "☀️", sunFactor: 1.05, moistureBonus: 0.005, desc: "Optimal sunlight and rapid root mineral synthesis.", rootFreq: 130.81, scale: [261.63, 293.66, 329.63, 392.00, 440.00, 523.25] }, // C Major Pentatonic
+  { name: "Nutrient Monsoon", icon: "🌧️", sunFactor: 0.85, moistureBonus: 0.015, desc: "High rainfall accelerating detritus breakdown into fertile loam.", rootFreq: 110.00, scale: [220.00, 246.94, 277.18, 329.63, 369.99, 440.00] }, // A Lydian / Open
+  { name: "Arid Eclipse", icon: "🌘", sunFactor: 0.65, moistureBonus: 0.001, desc: "Dimmed canopy light; organisms rely on stored metabolism.", rootFreq: 98.00, scale: [196.00, 233.08, 261.63, 293.66, 349.23, 392.00] }, // G Minor Pentatonic
+  { name: "Bioluminescent Bloom", icon: "✨", sunFactor: 1.25, moistureBonus: 0.008, desc: "High energetic excitation stimulating spore proliferation.", rootFreq: 146.83, scale: [293.66, 329.63, 369.99, 440.00, 493.88, 587.33] } // D Major Shimmer
 ];
 let currentClimateIndex = 0;
 let climateTicksRemaining = 600;
@@ -46,6 +48,121 @@ let epochHistory = [];
 let activeTool = "plant";
 let activeRipples = [];
 let mathScopeOpen = false;
+let audioEnabled = false;
+
+// ---------- Web Audio Generative Synthesis Engine ----------
+let audioCtx = null;
+let masterGain = null;
+let droneOsc1 = null;
+let droneOsc2 = null;
+let droneGain = null;
+let droneFilter = null;
+
+function initAudioEngine() {
+  if (audioCtx) return;
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+
+    masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+
+    // Warm Ambient Low-Pass Filter
+    droneFilter = audioCtx.createBiquadFilter();
+    droneFilter.type = "lowpass";
+    droneFilter.frequency.setValueAtTime(320, audioCtx.currentTime);
+    droneFilter.Q.setValueAtTime(2.5, audioCtx.currentTime);
+
+    droneGain = audioCtx.createGain();
+    droneGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+
+    // Dual Detuned Drone Oscillators for Sub-Benthic Resonance
+    droneOsc1 = audioCtx.createOscillator();
+    droneOsc2 = audioCtx.createOscillator();
+
+    droneOsc1.type = "sine";
+    droneOsc2.type = "triangle";
+
+    const currentClimate = CLIMATES[currentClimateIndex];
+    droneOsc1.frequency.setValueAtTime(currentClimate.rootFreq, audioCtx.currentTime);
+    droneOsc2.frequency.setValueAtTime(currentClimate.rootFreq * 1.503, audioCtx.currentTime); // Perfect fifth + micro-detune
+
+    droneOsc1.connect(droneGain);
+    droneOsc2.connect(droneGain);
+    droneGain.connect(droneFilter);
+    droneFilter.connect(masterGain);
+    masterGain.connect(audioCtx.destination);
+
+    droneOsc1.start();
+    droneOsc2.start();
+  } catch (err) {
+    console.warn("Web Audio initialization deferred until user interaction.", err);
+  }
+}
+
+function updateAudioClimate() {
+  if (!audioCtx || !audioEnabled || !droneOsc1 || !droneOsc2) return;
+  const climate = CLIMATES[currentClimateIndex];
+  const now = audioCtx.currentTime;
+
+  droneOsc1.frequency.exponentialRampToValueAtTime(climate.rootFreq, now + 3.0);
+  droneOsc2.frequency.exponentialRampToValueAtTime(climate.rootFreq * 1.503, now + 3.0);
+
+  if (climate.name === "Arid Eclipse") {
+    droneFilter.frequency.exponentialRampToValueAtTime(220, now + 2.5);
+  } else if (climate.name === "Bioluminescent Bloom") {
+    droneFilter.frequency.exponentialRampToValueAtTime(560, now + 2.5);
+  } else {
+    droneFilter.frequency.exponentialRampToValueAtTime(340, now + 2.5);
+  }
+}
+
+function playSynapticChime(pitchMultiplier = 1.0) {
+  if (!audioCtx || !audioEnabled) return;
+  try {
+    const climate = CLIMATES[currentClimateIndex];
+    const scale = climate.scale;
+    const freq = scale[Math.floor(Math.random() * scale.length)] * pitchMultiplier;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const now = audioCtx.currentTime;
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, now);
+
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+
+    osc.connect(gain);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.6);
+  } catch (e) {}
+}
+
+function playBenthicPercussion() {
+  if (!audioCtx || !audioEnabled) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const now = audioCtx.currentTime;
+
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(95, now);
+    osc.frequency.exponentialRampToValueAtTime(38, now + 0.08);
+
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+
+    osc.connect(gain);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.1);
+  } catch (e) {}
+}
 
 // ---------- Grid & Field Helpers ----------
 function createGrid() {
@@ -201,6 +318,14 @@ function spawnSynapticSpark(fromX, fromY, toX, toY, color = "#00f0ff") {
     color,
     radius: 2.2 + Math.random() * 1.5,
   });
+
+  // Reinforce long-term substrate memory along the active axonal filament
+  substrateMemory[fromX][fromY] = Math.min(10.0, substrateMemory[fromX][fromY] + 0.4);
+  substrateMemory[toX][toY] = Math.min(10.0, substrateMemory[toX][toY] + 0.4);
+
+  if (Math.random() < 0.15) {
+    playSynapticChime(1.0);
+  }
 }
 
 function triggerPlantPulse(startX, startY, strength = 1.0, depth = 4) {
@@ -283,6 +408,7 @@ function initWorld() {
   grid = createGrid();
   soilNutrients = createField(2.0);
   detritusField = createField(0.0);
+  substrateMemory = createField(0.0);
   entities = [];
   timeSeriesHistory = [];
   epochHistory = [];
@@ -334,7 +460,7 @@ function initWorld() {
   currentClimateIndex = 0;
   climateTicksRemaining = 600;
   clearLog();
-  logLine("🌱 Epoch 0 — Synapse Reef v0.4 active: Four-tier trophic web, synaptic action potentials & Math Scope diagnostics.", "epoch");
+  logLine("🌱 Epoch 0 — Synapse Reef v0.6 active: Generative Web Audio, Substrate Bio-Memory & Telemetry.", "epoch");
   updateEpochBadge();
   updateClimateHUD();
 }
@@ -342,7 +468,7 @@ function initWorld() {
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [arr[j], arr[i]] = [arr[i], arr[j]];
+    [arr[j], arr[i]] = [arr[j], arr[i]];
   }
 }
 
@@ -354,6 +480,7 @@ function updateClimateCycle() {
     const climate = CLIMATES[currentClimateIndex];
     logLine(`🌍 Climate Shift: Entered '${climate.name}' ${climate.icon} — ${climate.desc}`, "epoch");
     updateClimateHUD();
+    updateAudioClimate();
   }
 }
 
@@ -384,6 +511,11 @@ function cycleSoilAndDetritus() {
         soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + decomposed * 1.3);
       }
       soilNutrients[x][y] = Math.min(10.0, soilNutrients[x][y] + climate.moistureBonus);
+
+      // Substrate memory slow passive decay
+      if (substrateMemory[x][y] > 0.01) {
+        substrateMemory[x][y] -= 0.002;
+      }
     }
   }
 }
@@ -395,7 +527,8 @@ function updatePlant(p) {
   const plantNeighbors = neighbors.filter(([nx, ny]) => grid[nx][ny]?.type === "plant").length;
 
   const soil = soilNutrients[p.x][p.y];
-  const soilBonus = soil * g.nutrientUptake * 0.15;
+  const memBonus = substrateMemory[p.x][p.y] * 0.08; // Bio-memory accelerates root uptake
+  const soilBonus = (soil * g.nutrientUptake * 0.15) + memBonus;
   soilNutrients[p.x][p.y] = Math.max(0, soil - 0.015 * g.nutrientUptake);
 
   if (plantNeighbors >= g.crowdingTolerance) {
@@ -544,6 +677,7 @@ function updateCarnivore(c) {
       c.energy = Math.min(g.maxSatiation, c.energy + g.huntEfficiency);
       detritusField[nx][ny] = Math.min(10.0, detritusField[nx][ny] + 2.5);
       triggerPlantPulse(nx, ny, 1.0, 5);
+      playSynapticChime(1.5);
       hunted = true;
       break;
     }
@@ -621,6 +755,7 @@ function updateBenthic(b) {
     detritusField[b.x][b.y] -= scavenged;
     b.energy = Math.min(g.maxSatiation, b.energy + scavenged * 1.5);
     soilNutrients[b.x][b.y] = Math.min(10.0, soilNutrients[b.x][b.y] + scavenged * 0.8);
+    playBenthicPercussion();
   }
 
   const immediateNeighbors = getNeighbors(b.x, b.y);
@@ -661,13 +796,29 @@ function environmentalBalance() {
   const carnCount = entities.filter(e => e.type === "carnivore").length;
   const benthicCount = entities.filter(e => e.type === "benthic").length;
 
+  // Bio-memory driven recolonization: prefer sprouting along historic neural pathways
   if (plantCount < 15) {
     for (let k = 0; k < 6; k++) {
-      const rx = Math.floor(Math.random() * WIDTH);
-      const ry = Math.floor(Math.random() * HEIGHT);
-      if (!grid[rx][ry]) {
-        const p = createPlant(rx, ry);
-        grid[rx][ry] = p;
+      let rx = Math.floor(Math.random() * WIDTH);
+      let ry = Math.floor(Math.random() * HEIGHT);
+
+      // Search for highest bio-memory node near random point
+      let bestX = rx, bestY = ry, maxMem = -1;
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dy = -2; dy <= 2; dy++) {
+          const nx = (rx + dx + WIDTH) % WIDTH;
+          const ny = (ry + dy + HEIGHT) % HEIGHT;
+          if (!grid[nx][ny] && substrateMemory[nx][ny] > maxMem) {
+            maxMem = substrateMemory[nx][ny];
+            bestX = nx;
+            bestY = ny;
+          }
+        }
+      }
+
+      if (!grid[bestX][bestY]) {
+        const p = createPlant(bestX, bestY);
+        grid[bestX][bestY] = p;
         entities.push(p);
       }
     }
@@ -729,12 +880,13 @@ function updateMathScopeDiagnostics() {
 
   const totalCells = WIDTH * HEIGHT;
   let pCount = 0, hCount = 0, cCount = 0, bCount = 0, activePulses = 0;
-  let totalNutrients = 0, totalDetritus = 0;
+  let totalNutrients = 0, totalDetritus = 0, memoryNodes = 0;
 
   for (let x = 0; x < WIDTH; x++) {
     for (let y = 0; y < HEIGHT; y++) {
       totalNutrients += soilNutrients[x][y];
       totalDetritus += detritusField[x][y];
+      if (substrateMemory[x][y] > 1.0) memoryNodes++;
     }
   }
 
@@ -782,8 +934,10 @@ function updateMathScopeDiagnostics() {
   const barActEl = document.getElementById("barActivity");
   const stabEl = document.getElementById("scopeStability");
   const barStabEl = document.getElementById("barStability");
+  const memEl = document.getElementById("scopeMemory");
+  const barMemEl = document.getElementById("barMemory");
   const bioEl = document.getElementById("scopeBiomass");
-  const barBioEl = document.getElementById("barBiomass");
+  const barBioEl = document.getElementById("barBioEl");
 
   if (entropyEl) entropyEl.textContent = `${entropy.toFixed(3)} bits`;
   if (barEntropyEl) barEntropyEl.style.width = `${entropyPct}%`;
@@ -793,6 +947,9 @@ function updateMathScopeDiagnostics() {
 
   if (stabEl) stabEl.textContent = stabilityState;
   if (barStabEl) barStabEl.style.width = `${stabilityPct}%`;
+
+  if (memEl) memEl.textContent = `${memoryNodes} Nodes`;
+  if (barMemEl) barMemEl.style.width = `${Math.min(100, (memoryNodes / (totalCells * 0.4)) * 100)}%`;
 
   if (bioEl) bioEl.textContent = `${Math.round(totalNutrients)} / ${Math.round(totalDetritus)}`;
   if (barBioEl) barBioEl.style.width = `${Math.min(100, (totalNutrients / (totalCells * 3)) * 100)}%`;
@@ -1002,6 +1159,28 @@ document.querySelectorAll(".tool-btn").forEach((btn) => {
   });
 });
 
+// Audio Toggle Button
+const audioToggleBtn = document.getElementById("audioToggleBtn");
+const audioIcon = document.getElementById("audioIcon");
+const audioLabel = document.getElementById("audioLabel");
+
+if (audioToggleBtn) {
+  audioToggleBtn.addEventListener("click", () => {
+    initAudioEngine();
+    if (audioCtx && audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+    audioEnabled = !audioEnabled;
+    audioToggleBtn.classList.toggle("active", audioEnabled);
+    if (audioIcon) audioIcon.textContent = audioEnabled ? "🔊" : "🔇";
+    if (audioLabel) audioLabel.textContent = audioEnabled ? "AUDIO ON" : "AUDIO OFF";
+
+    if (masterGain) {
+      masterGain.gain.setValueAtTime(audioEnabled ? 0.35 : 0.0, audioCtx.currentTime);
+    }
+  });
+}
+
 // Math Scope toggle button
 const mathScopeBtn = document.getElementById("mathScopeBtn");
 const mathScopePanel = document.getElementById("mathScopePanel");
@@ -1097,16 +1276,24 @@ function renderWorld() {
 
       const nut = Math.min(10.0, soilNutrients[x][y]);
       const det = Math.min(10.0, detritusField[x][y]);
+      const mem = Math.min(10.0, substrateMemory[x][y]);
 
-      const bgR = Math.min(42, Math.round(12 + det * 3.2));
-      const bgG = Math.min(48, Math.round(16 + nut * 3.4));
-      const bgB = Math.min(65, Math.round(26 + det * 2.0));
+      const bgR = Math.min(48, Math.round(12 + det * 3.2 + mem * 1.2));
+      const bgG = Math.min(52, Math.round(16 + nut * 3.4));
+      const bgB = Math.min(75, Math.round(26 + det * 2.0 + mem * 3.5));
 
       ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
       ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
 
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.02)";
-      ctx.strokeRect(px, py, CELL_SIZE, CELL_SIZE);
+      // Substrate memory bio-channel glowing borders
+      if (mem > 1.2) {
+        ctx.strokeStyle = `rgba(168, 85, 247, ${Math.min(0.4, mem * 0.045)})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 0.5, py + 0.5, CELL_SIZE - 1, CELL_SIZE - 1);
+      } else {
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.02)";
+        ctx.strokeRect(px, py, CELL_SIZE, CELL_SIZE);
+      }
 
       const e = grid[x][y];
       if (!e) continue;
