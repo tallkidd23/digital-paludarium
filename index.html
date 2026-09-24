@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Synapse Reef — Neural Marine Ecosystem Sim</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=0.62" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -13,12 +13,7 @@
     <header>
       <div class="title-row">
         <h1>Synapse Reef</h1>
-        <div class="header-pills">
-          <button class="audio-pill" id="audioToggleBtn" title="Toggle Generative Bio-Acoustics">
-            <span id="audioIcon">🔇</span> <span id="audioLabel">AUDIO OFF</span>
-          </button>
-          <span class="live-pill"><span class="pulse-dot"></span> LIVE ECOSYSTEM</span>
-        </div>
+        <span class="live-pill"><span class="pulse-dot"></span> LIVE ECOSYSTEM</span>
       </div>
       <p class="subtitle">Self-organizing neural-coral automata, long-term substrate memory, generative bio-acoustics, and real-time telemetry.</p>
     </header>
@@ -43,11 +38,16 @@
         </div>
       </div>
 
-      <!-- Stewardship Controls Panel -->
+      <!-- Stewardship Controls & Audio Panel -->
       <div class="controls-panel">
         <div class="controls-header">
           <h2>Reef Stewardship (Active: <span id="activeToolName">Drop Spores</span>)</h2>
-          <button class="scope-toggle-btn" id="mathScopeBtn">📐 Math Scope</button>
+          <div class="header-action-buttons">
+            <button class="audio-toggle-btn" id="audioToggleBtn" title="Toggle Generative Bio-Acoustics">
+              <span id="audioIcon">🔇</span> <span id="audioLabel">AUDIO OFF</span>
+            </button>
+            <button class="scope-toggle-btn" id="mathScopeBtn">📐 Math Scope</button>
+          </div>
         </div>
         <div class="tools-grid">
           <button class="tool-btn active" data-tool="plant">🌱 Drop Spores</button>
@@ -121,6 +121,6 @@
       <p>Synapse Reef v0.6 &middot; Neural marine cellular automaton &middot; Built with vanilla HTML/CSS/JS & Web Audio API</p>
     </footer>
 
-    <script src="main.js"></script>
+    <script src="main.js?v=0.62"></script>
   </body>
 </html>
