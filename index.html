@@ -1,81 +1,386 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Synapse Reef | An Emergent Life Simulation</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Synapse Reef — Living Neural Paludarium</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      background: #050814;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      overflow-x: hidden;
+    }
+    .container {
+      width: 100%;
+      max-width: 740px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 4px;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(135deg, #38bdf8, #22c55e, #f43f5e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .badge {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #38bdf8;
+      font-weight: 600;
+    }
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      background: #030712;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 20px -5px rgba(56, 189, 248, 0.15);
+      aspect-ratio: 50 / 35;
+      touch-action: none;
+    }
+    canvas#sim {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+    }
+    .hud-card {
+      background: #090e1a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .climate-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .climate-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .climate-icon {
+      font-size: 1.4rem;
+    }
+    .climate-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #38bdf8;
+    }
+    .climate-stats {
+      display: flex;
+      gap: 14px;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+    .stat-val {
+      color: #f1f5f9;
+      font-weight: 600;
+    }
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    @media (min-width: 480px) {
+      .tools-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+    .tool-btn {
+      background: #10172a;
+      border: 1px solid #1e293b;
+      color: #94a3b8;
+      border-radius: 8px;
+      padding: 8px 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .tool-btn:hover {
+      background: #172138;
+      color: #f1f5f9;
+    }
+    .tool-btn.active {
+      background: rgba(56, 189, 248, 0.18);
+      border-color: #38bdf8;
+      color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+    }
+    .math-toggle-btn {
+      background: #131d33;
+      border: 1px solid #334155;
+      color: #a78bfa;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .math-toggle-btn.active {
+      background: rgba(167, 139, 250, 0.2);
+      border-color: #a78bfa;
+      color: #c4b5fd;
+      box-shadow: 0 0 12px rgba(167, 139, 250, 0.4);
+    }
+    .math-hud-panel {
+      display: none;
+      background: #090d1f;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 12px;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .math-hud-panel.open {
+      display: flex;
+    }
+    .math-telemetry-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    @media (min-width: 520px) {
+      .math-telemetry-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+    .math-stat-box {
+      background: #0d1326;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .math-stat-title {
+      font-size: 0.7rem;
+      color: #94a3b8;
+      font-family: monospace;
+    }
+    .math-stat-num {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #38bdf8;
+      font-family: monospace;
+    }
+    .phase-space-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: #070a16;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 8px;
+    }
+    .phase-space-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: #a78bfa;
+      font-family: monospace;
+      font-weight: 600;
+    }
+    canvas#phaseCanvas {
+      width: 100%;
+      height: 120px;
+      display: block;
+      background: #030611;
+      border-radius: 6px;
+    }
+    .graph-card {
+      background: #090e1a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .graph-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+    .graph-legend {
+      display: flex;
+      gap: 12px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.72rem;
+    }
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    canvas#graphCanvas {
+      width: 100%;
+      height: 70px;
+      display: block;
+    }
+    .log-card {
+      background: #090e1a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 10px 14px;
+      height: 110px;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.72rem;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .log-card .epoch {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+    .log-card .event {
+      color: #a1a1aa;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <div class="header-main">
-        <h1>Synapse Reef</h1>
-        <span class="live-pill"><span class="pulse-dot"></span> LIVE ECOSYSTEM</span>
-      </div>
-      <p class="subtitle">Self-organizing brain-coral geometry, closed-loop soil memory, and environmental climate shifts.</p>
+      <h1>SYNAPSE REEF</h1>
+      <span class="badge" id="epochBadge">Epoch 0 (Tick 0)</span>
     </header>
 
-    <main>
-      <div class="canvas-wrapper">
-        <canvas id="sim"></canvas>
-      </div>
+    <div class="canvas-container">
+      <canvas id="sim"></canvas>
+    </div>
 
-      <!-- Live Environmental Weather & Climate HUD -->
-      <div class="climate-bar">
-        <div class="climate-item">
+    <div class="hud-card">
+      <div class="climate-row">
+        <div class="climate-info">
           <span class="climate-icon" id="climateIcon">☀️</span>
-          <div class="climate-meta">
-            <span class="climate-label">Environmental Regime</span>
-            <b class="climate-val" id="climateName">Verdant Solstice</b>
+          <div>
+            <div style="font-size: 0.7rem; color: #64748b; font-weight: 600;">ENVIRONMENTAL REGIME</div>
+            <div class="climate-name" id="climateName">Verdant Solstice</div>
           </div>
         </div>
-        <div class="climate-item stats-item">
-          <span class="climate-meta-stat">Sunlight: <b id="sunStat">100%</b></span>
-          <span class="climate-meta-stat">Soil Moisture: <b id="soilStat">Optimal</b></span>
+        <div class="climate-stats">
+          <div>Sunlight: <span class="stat-val" id="sunStat">105%</span></div>
+          <div>Soil Moisture: <span class="stat-val" id="soilStat">Optimal</span></div>
         </div>
       </div>
 
-      <!-- God-Hand Interactive Stewardship Controls -->
-      <div class="controls-panel">
-        <div class="controls-header">
-          <h2>Reef Stewardship (Interact & Seed)</h2>
-          <span class="active-tool-label">Active: <b id="activeToolName">Drop Spores</b></span>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+        <div style="font-size: 0.72rem; color: #64748b; font-weight: 600;">
+          REEF STEWARDSHIP (ACTIVE: <span id="activeToolName" style="color: #38bdf8;">Drop Spores</span>)
         </div>
-        <div class="tools-grid">
-          <button class="tool-btn active" data-tool="plant">🌱 Drop Spores</button>
-          <button class="tool-btn" data-tool="grazer">🟠 Introduce Grazers</button>
-          <button class="tool-btn" data-tool="predator">🔴 Summon Apex</button>
-          <button class="tool-btn" data-tool="nutrient">✨ Enrich Substrate</button>
+        <button class="math-toggle-btn" id="mathToggleBtn">
+          <span>📐 Math Scope</span>
+        </button>
+      </div>
+
+      <div class="tools-grid">
+        <button class="tool-btn active" data-tool="plant">🌱 Drop Spores</button>
+        <button class="tool-btn" data-tool="grazer">🟠 Introduce Grazers</button>
+        <button class="tool-btn" data-tool="predator">🔴 Summon Apex</button>
+        <button class="tool-btn" data-tool="nutrient">✨ Enrich Substrate</button>
+      </div>
+    </div>
+
+    <!-- Real-Time Mathematics Diagnostic Scope HUD -->
+    <div class="math-hud-panel" id="mathScopePanel">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.78rem; font-weight: 700; color: #c4b5fd; font-family: monospace;">
+          ⚡ REAL-TIME MATHEMATICAL TELEMETRY
+        </span>
+        <span style="font-size: 0.68rem; color: #94a3b8; font-family: monospace;">Turing-Lotka Engine</span>
+      </div>
+
+      <div class="math-telemetry-grid">
+        <div class="math-stat-box">
+          <span class="math-stat-title">dP/dt (Canopy Delta)</span>
+          <span class="math-stat-num" id="mathDP">+0.00 / tick</span>
+        </div>
+        <div class="math-stat-box">
+          <span class="math-stat-title">dH/dt (Grazer Delta)</span>
+          <span class="math-stat-num" id="mathDH">+0.00 / tick</span>
+        </div>
+        <div class="math-stat-box">
+          <span class="math-stat-title">⟨Φ⟩ Mean Neural Potential</span>
+          <span class="math-stat-num" id="mathMeanPhi">0.000 V</span>
+        </div>
+        <div class="math-stat-box">
+          <span class="math-stat-title">∬ S(x,y) Mass Index</span>
+          <span class="math-stat-num" id="mathSoilMass">0.0</span>
         </div>
       </div>
 
-      <!-- Live Trophic Wave Dynamics (Sparkline Graph) -->
-      <div class="graph-panel">
-        <div class="graph-header">
-          <h2>Trophic Wave Dynamics (Oscillation Curves)</h2>
-          <div class="legend">
-            <span class="legend-item"><span class="legend-dot plant-dot"></span> Canopy</span>
-            <span class="legend-item"><span class="legend-dot grazer-dot"></span> Grazers</span>
-            <span class="legend-item"><span class="legend-dot predator-dot"></span> Predators</span>
-          </div>
+      <div class="phase-space-container">
+        <div class="phase-space-header">
+          <span>2D LOTKA-VOLTERRA PHASE-SPACE ORBIT [P(t) vs H(t)]</span>
+          <span id="orbitAttractorStatus" style="color: #38bdf8;">Stable Attractor</span>
         </div>
-        <canvas id="graphCanvas"></canvas>
+        <canvas id="phaseCanvas"></canvas>
       </div>
+    </div>
 
-      <!-- Autonomous Chronicle Engine -->
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Ecosystem Chronicle</h2>
-          <span class="epoch-counter" id="epochBadge">Epoch 0</span>
+    <div class="graph-card">
+      <div class="graph-header">
+        <span>TROPHIC WEB POPULATION DYNAMICS</span>
+        <div class="graph-legend">
+          <div class="legend-item"><div class="legend-dot" style="background: #22c55e;"></div><span>Canopy</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f97316;"></div><span>Grazers</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background: #f43f5e;"></div><span>Predators (x2.5)</span></div>
         </div>
-        <div id="log" class="log"></div>
       </div>
-    </main>
+      <canvas id="graphCanvas"></canvas>
+    </div>
 
-    <footer>
-      <p class="meta-tag">An open-source artifact exploring emergent systems & biological computation.</p>
-    </footer>
+    <div class="log-card" id="log"></div>
   </div>
 
   <script src="main.js"></script>
